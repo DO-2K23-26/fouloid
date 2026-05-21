@@ -1,5 +1,7 @@
+import { HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
 import { createLangChainAgentRuntime } from "../agent/runtime.js";
+import { startHealthServer } from "../health/server.js";
 import { createIggyConnection } from "../iggy/connection.js";
 import { createIggyMessenger } from "../iggy/messenger.js";
 import type { AgentAppConfig } from "../types/agent.js";
@@ -10,6 +12,7 @@ export async function startApplication(
   console.log(
     `[app] starting "${config.agentName}" — model=${config.openAI.model}, iggy=${config.iggyAddress}, stream=${config.topics.stream}, in=${config.topics.inputTopic}, out=${config.topics.outputTopic}`
   );
+  const startedAt = Date.now();
 
   const { client, clientConfig } = await createIggyConnection(config);
   const messenger = createIggyMessenger(
@@ -24,6 +27,20 @@ export async function startApplication(
       ? { baseURL: config.openAI.baseURL }
       : undefined
   });
+
+  console.log(`[app] probing model ${config.openAI.model}...`);
+  try {
+    await model.invoke([new HumanMessage("ping")]);
+  } catch (error) {
+    await client.destroy().catch(() => {});
+    const reason =
+      error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Model "${config.openAI.model}" probe failed: ${reason}`,
+      { cause: error instanceof Error ? error : undefined }
+    );
+  }
+  console.log(`[app] model probe ok`);
 
   const agent = createLangChainAgentRuntime({
     agentName: config.agentName,
@@ -43,6 +60,11 @@ export async function startApplication(
     );
 
     await agent.handleMessage(message);
+  });
+
+  await startHealthServer(config.healthPort, {
+    agentName: config.agentName,
+    startedAt
   });
 
   console.log(

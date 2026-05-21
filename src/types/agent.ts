@@ -24,6 +24,7 @@ export interface AgentAppConfig {
     baseURL?: string;
   };
   systemPrompt?: string;
+  healthPort: number;
 }
 
 export interface IggyMessenger {

@@ -14,6 +14,14 @@ export function getConfigFromEnv(): AgentAppConfig {
     process.env.IGGY_OUTPUT_TOPIC ?? "agent-output";
   const agentName =
     process.env.AGENT_NAME ?? "langchain-agent";
+  const healthPortRaw = process.env.HEALTH_PORT ?? "8080";
+  const healthPort = Number(healthPortRaw);
+
+  if (!Number.isInteger(healthPort) || healthPort < 1 || healthPort > 65535) {
+    throw new Error(
+      `Invalid HEALTH_PORT "${healthPortRaw}". Expected an integer between 1 and 65535.`
+    );
+  }
 
   if (!apiKey) {
     throw new Error(
@@ -36,6 +44,7 @@ export function getConfigFromEnv(): AgentAppConfig {
       model,
       baseURL: process.env.OPENAI_BASE_URL
     },
-    systemPrompt: process.env.AGENT_SYSTEM_PROMPT
+    systemPrompt: process.env.AGENT_SYSTEM_PROMPT,
+    healthPort
   };
 }

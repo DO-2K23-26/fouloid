@@ -35,12 +35,12 @@ export function createIggyMessenger(
 
     async subscribe(handler) {
       console.log(
-        `[iggy] subscribing to ${topics.stream}/${topics.inputTopic} (partition 1)`
+        `[iggy] subscribing to ${topics.stream}/${topics.inputTopic} (partition 0)`
       );
       const stream = await singleConsumerStream(clientConfig)({
         streamId: topics.stream,
         topicId: topics.inputTopic,
-        partitionId: 1,
+        partitionId: 0,
         pollingStrategy: PollingStrategy.Next,
         count: 10,
         autocommit: true
