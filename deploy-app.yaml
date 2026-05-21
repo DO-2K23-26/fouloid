@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: app
+
+  template:
+    metadata:
+      labels:
+        app: app
+
+    spec:
+      initContainers:
+        - name: wait-for-iggy
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z iggy 8090; do
+                echo "waiting for iggy..."
+                sleep 2
+              done
+
+      containers:
+        - name: app
+
+          image: my-app:ver
+
+          envFrom:
+            - secretRef:
+                name: app-env
+
+          env:
+            - name: IGGY_ADDRESS
+              value: "iggy:8090"
+
+          ports:
+            - containerPort: 3000
+
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+spec:
+  selector:
+    app: app
+
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+
+  type: ClusterIP
