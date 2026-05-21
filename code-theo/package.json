@@ -1,0 +1,29 @@
+{
+  "name": "langchain-iggy-agents",
+  "version": "1.0.0",
+  "description": "Multi-agent LangChain JS system using Apache Iggy and OpenAI-compatible APIs",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --watch main.js"
+  },
+  "keywords": [
+    "langchain",
+    "agents",
+    "apache-iggy",
+    "openai",
+    "llm",
+    "multi-agent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@langchain/core": "^0.3.58",
+    "@langchain/openai": "^0.6.7",
+    "dotenv": "^16.5.0",
+    "iggy-node": "^0.0.7",
+    "langchain": "^0.3.27",
+    "zod": "^3.25.42"
+  }
+}
