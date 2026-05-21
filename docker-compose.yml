@@ -11,3 +11,19 @@ services:
     security_opt:
       - seccomp:unconfined
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/8090'"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      IGGY_ADDRESS: "iggy:8090"
+    depends_on:
+      iggy:
+        condition: service_healthy
+    restart: unless-stopped

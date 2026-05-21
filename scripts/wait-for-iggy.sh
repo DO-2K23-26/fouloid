@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
-echo "Waiting for Iggy..."
+HOST=${1:-localhost}
+PORT=${2:-8090}
 
-until nc -z localhost 8090; do
+echo "Waiting for Iggy at $HOST:$PORT..."
+
+until nc -z "$HOST" "$PORT"; do
 	sleep 1
 done
 
