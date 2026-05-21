@@ -18,7 +18,8 @@ export async function startApplication(
   const messenger = createIggyMessenger(
     client,
     clientConfig,
-    config.topics
+    config.topics,
+    config.agentName
   );
   const model = new ChatOpenAI({
     apiKey: config.openAI.apiKey,
@@ -70,4 +71,17 @@ export async function startApplication(
   console.log(
     `[app] "${config.agentName}" ready — listening on ${config.topics.inputTopic}, publishing to ${config.topics.outputTopic}`
   );
+
+  if (config.kickoff) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    console.log(
+      `[app] kickoff: publishing id=${id} "${config.kickoff}"`
+    );
+    await messenger.send({
+      id,
+      sender: config.agentName,
+      text: config.kickoff,
+      timestamp: Date.now()
+    });
+  }
 }

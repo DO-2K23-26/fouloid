@@ -18,14 +18,46 @@ services:
       retries: 12
       start_period: 10s
 
-  app:
+  agent-a:
     build: .
     env_file: .env
     environment:
       IGGY_ADDRESS: "iggy:8090"
       HEALTH_PORT: "8080"
+      IGGY_STREAM: "agents"
+      IGGY_INPUT_TOPIC: "agent-chat"
+      IGGY_OUTPUT_TOPIC: "agent-chat"
+      AGENT_NAME: "alice"
+      AGENT_SYSTEM_PROMPT: "You are Alice having a brief, friendly chat with Bob. Keep each reply to one short sentence."
+      AGENT_KICKOFF: "Hi Bob, how's it going?"
     ports:
       - "8080:8080"
+    depends_on:
+      iggy:
+        condition: service_healthy
+      agent-b:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  agent-b:
+    build: .
+    env_file: .env
+    environment:
+      IGGY_ADDRESS: "iggy:8090"
+      HEALTH_PORT: "8080"
+      IGGY_STREAM: "agents"
+      IGGY_INPUT_TOPIC: "agent-chat"
+      IGGY_OUTPUT_TOPIC: "agent-chat"
+      AGENT_NAME: "bob"
+      AGENT_SYSTEM_PROMPT: "You are Bob having a brief, friendly chat with Alice. Keep each reply to one short sentence."
+    ports:
+      - "8081:8080"
     depends_on:
       iggy:
         condition: service_healthy

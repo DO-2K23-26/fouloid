@@ -25,6 +25,7 @@ export interface AgentAppConfig {
   };
   systemPrompt?: string;
   healthPort: number;
+  kickoff?: string;
 }
 
 export interface IggyMessenger {

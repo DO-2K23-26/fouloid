@@ -45,6 +45,7 @@ export function getConfigFromEnv(): AgentAppConfig {
       baseURL: process.env.OPENAI_BASE_URL
     },
     systemPrompt: process.env.AGENT_SYSTEM_PROMPT,
-    healthPort
+    healthPort,
+    kickoff: process.env.AGENT_KICKOFF
   };
 }

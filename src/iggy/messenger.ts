@@ -2,7 +2,7 @@ import {
   type Client,
   type ClientConfig,
   PollingStrategy,
-  singleConsumerStream
+  groupConsumerStream
 } from "apache-iggy";
 import type {
   AgentMessage,
@@ -19,7 +19,8 @@ function createMessageId() {
 export function createIggyMessenger(
   client: Client,
   clientConfig: ClientConfig,
-  topics: IggyTopicsConfig
+  topics: IggyTopicsConfig,
+  consumerGroup: string
 ): IggyMessenger {
   return {
     async send(message) {
@@ -35,12 +36,12 @@ export function createIggyMessenger(
 
     async subscribe(handler) {
       console.log(
-        `[iggy] subscribing to ${topics.stream}/${topics.inputTopic} (partition 0)`
+        `[iggy] subscribing to ${topics.stream}/${topics.inputTopic} as group "${consumerGroup}"`
       );
-      const stream = await singleConsumerStream(clientConfig)({
+      const stream = await groupConsumerStream(clientConfig)({
+        groupName: consumerGroup,
         streamId: topics.stream,
         topicId: topics.inputTopic,
-        partitionId: 0,
         pollingStrategy: PollingStrategy.Next,
         count: 10,
         autocommit: true
