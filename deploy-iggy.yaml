@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iggy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iggy
+  template:
+    metadata:
+      labels:
+        app: iggy
+    spec:
+      containers:
+        - name: iggy
+          image: apache/iggy:latest
+          ports:
+            - containerPort: 8090
+          env:
+            - name: IGGY_TCP_ENABLED
+              value: "true"
+            - name: IGGY_TCP_ADDRESS
+              value: "0.0.0.0:8090"
+            - name: IGGY_ROOT_USERNAME
+              value: "iggy"
+            - name: IGGY_ROOT_PASSWORD
+              value: "iggy"
+
+          securityContext:
+            seccompProfile:
+              type: Unconfined
+
+          livenessProbe:
+            tcpSocket:
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+
+          readinessProbe:
+            tcpSocket:
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iggy
+spec:
+  selector:
+    app: iggy
+  ports:
+    - protocol: TCP
+      port: 8090
+      targetPort: 8090
+  type: ClusterIP
