@@ -1,96 +1,62 @@
-import type {
-  AgentAppConfig,
-  IggyClient
-} from "../types/agent.js";
+import { Client, type ClientConfig } from "apache-iggy";
+import type { AgentAppConfig } from "../types/agent.js";
 
-function isAlreadyExistsError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
+function parseIggyAddress(address: string) {
+  const [host, portPart] = address.split(":");
+  const port = Number(portPart);
+
+  if (!host || !Number.isFinite(port)) {
+    throw new Error(
+      `Invalid IGGY_ADDRESS "${address}". Expected format "host:port".`
+    );
   }
 
-  const details = [error.name, error.message]
-    .filter((value) => typeof value === "string")
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    details.includes("already exists") ||
-    details.includes("alreadyexist") ||
-    details.includes("stream exists") ||
-    details.includes("topic exists")
-  );
+  return { host, port };
 }
 
-async function ensureTopic(
-  client: IggyClient,
-  stream: string,
-  topic: string
-) {
-  try {
-    await client.createTopic(stream, topic);
-    console.log(`Created topic: ${topic}`);
-  } catch (error) {
-    if (!isAlreadyExistsError(error)) {
-      throw error;
+export function createIggyClientConfig(
+  config: Pick<
+    AgentAppConfig,
+    "iggyAddress" | "iggyUsername" | "iggyPassword"
+  >
+): ClientConfig {
+  const { host, port } = parseIggyAddress(config.iggyAddress);
+
+  return {
+    transport: "TCP",
+    options: { host, port },
+    credentials: {
+      username: config.iggyUsername,
+      password: config.iggyPassword
     }
-
-    console.log(`Topic exists: ${topic}`);
-  }
-}
-
-async function loadIggyClient(address: string) {
-  let Client: new (address: string) => IggyClient;
-
-  try {
-    // @ts-expect-error iggy-node is expected to be provided at runtime.
-    ({ Client } = await import("iggy-node"));
-  } catch (error) {
-    throw new Error(
-      `Unable to load "iggy-node". Install or link an Iggy client package before starting the app. Original error: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-  }
-
-  try {
-    return new Client(address);
-  } catch (error) {
-    throw new Error(
-      `Failed to initialize Iggy client for address "${address}". Original error: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-  }
+  };
 }
 
 export async function createIggyConnection(
-  config: Pick<AgentAppConfig, "iggyAddress" | "topics">
+  config: Pick<
+    AgentAppConfig,
+    "iggyAddress" | "iggyUsername" | "iggyPassword" | "topics"
+  >
 ) {
-  const client = await loadIggyClient(config.iggyAddress);
+  const clientConfig = createIggyClientConfig(config);
+  const client = new Client(clientConfig);
 
-  await client.connect();
+  const stream = await client.stream.ensure(config.topics.stream);
+  console.log(`Stream ready: ${stream.name} (id=${stream.id})`);
 
-  try {
-    await client.createStream(config.topics.stream);
-    console.log(`Created stream: ${config.topics.stream}`);
-  } catch (error) {
-    if (!isAlreadyExistsError(error)) {
-      throw error;
-    }
-
-    console.log(`Stream exists: ${config.topics.stream}`);
-  }
-
-  await ensureTopic(
-    client,
-    config.topics.stream,
-    config.topics.inputTopic
+  const inputTopic = await client.topic.ensure(
+    stream.id,
+    config.topics.inputTopic,
+    1
   );
-  await ensureTopic(
-    client,
-    config.topics.stream,
-    config.topics.outputTopic
-  );
+  console.log(`Topic ready: ${inputTopic.name} (id=${inputTopic.id})`);
 
-  return client;
+  const outputTopic = await client.topic.ensure(
+    stream.id,
+    config.topics.outputTopic,
+    1
+  );
+  console.log(`Topic ready: ${outputTopic.name} (id=${outputTopic.id})`);
+
+  return { client, clientConfig };
 }

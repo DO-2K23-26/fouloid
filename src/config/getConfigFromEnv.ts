@@ -5,6 +5,8 @@ export function getConfigFromEnv(): AgentAppConfig {
   const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
   const iggyAddress =
     process.env.IGGY_ADDRESS ?? "127.0.0.1:8090";
+  const iggyUsername = process.env.IGGY_USERNAME ?? "iggy";
+  const iggyPassword = process.env.IGGY_PASSWORD ?? "iggy";
   const stream = process.env.IGGY_STREAM ?? "agents";
   const inputTopic =
     process.env.IGGY_INPUT_TOPIC ?? "agent-input";
@@ -22,6 +24,8 @@ export function getConfigFromEnv(): AgentAppConfig {
   return {
     agentName,
     iggyAddress,
+    iggyUsername,
+    iggyPassword,
     topics: {
       stream,
       inputTopic,

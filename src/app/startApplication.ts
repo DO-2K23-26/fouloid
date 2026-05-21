@@ -7,9 +7,10 @@ import type { AgentAppConfig } from "../types/agent.js";
 export async function startApplication(
   config: AgentAppConfig
 ) {
-  const client = await createIggyConnection(config);
+  const { client, clientConfig } = await createIggyConnection(config);
   const messenger = createIggyMessenger(
     client,
+    clientConfig,
     config.topics
   );
   const model = new ChatOpenAI({

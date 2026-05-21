@@ -1,79 +1,93 @@
+import {
+  type Client,
+  type ClientConfig,
+  PollingStrategy,
+  singleConsumerStream
+} from "apache-iggy";
 import type {
   AgentMessage,
-  IggyClient,
-  IggyMessagePayload,
   IggyMessenger,
   IggyTopicsConfig
 } from "../types/agent.js";
+
+type PollResponse = Awaited<ReturnType<Client["message"]["poll"]>>;
 
 function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export function createIggyMessenger(
-  client: IggyClient,
+  client: Client,
+  clientConfig: ClientConfig,
   topics: IggyTopicsConfig
 ): IggyMessenger {
   return {
     async send(message) {
-      const payload = Buffer.from(JSON.stringify(message));
-
-      await client.sendMessage(
-        topics.stream,
-        topics.outputTopic,
-        payload
-      );
+      await client.message.send({
+        streamId: topics.stream,
+        topicId: topics.outputTopic,
+        messages: [{ payload: JSON.stringify(message) }]
+      });
     },
 
     async subscribe(handler) {
-      await client.subscribe(
-        topics.stream,
-        topics.inputTopic,
-        async (message: IggyMessagePayload) => {
-          let parsed: Partial<AgentMessage>;
+      const stream = await singleConsumerStream(clientConfig)({
+        streamId: topics.stream,
+        topicId: topics.inputTopic,
+        partitionId: 1,
+        pollingStrategy: PollingStrategy.Next,
+        count: 10,
+        autocommit: true
+      });
 
-          try {
-            parsed = JSON.parse(
-              message.payload.toString()
-            ) as Partial<AgentMessage>;
-          } catch (error) {
-            console.error(
-              "Failed to parse input topic message",
-              error
-            );
-            return;
+      void (async () => {
+        for await (const response of stream as AsyncIterable<PollResponse>) {
+          for (const polled of response.messages) {
+            let parsed: Partial<AgentMessage>;
+
+            try {
+              parsed = JSON.parse(
+                polled.payload.toString()
+              ) as Partial<AgentMessage>;
+            } catch (error) {
+              console.error(
+                "Failed to parse input topic message",
+                error
+              );
+              continue;
+            }
+
+            if (
+              typeof parsed.sender !== "string" ||
+              typeof parsed.text !== "string"
+            ) {
+              console.error(
+                "Ignoring invalid input message payload"
+              );
+              continue;
+            }
+
+            await handler({
+              id:
+                typeof parsed.id === "string"
+                  ? parsed.id
+                  : createMessageId(),
+              sender: parsed.sender,
+              text: parsed.text,
+              timestamp:
+                typeof parsed.timestamp === "number"
+                  ? parsed.timestamp
+                  : Date.now(),
+              replyTo:
+                typeof parsed.replyTo === "string"
+                  ? parsed.replyTo
+                  : undefined
+            });
           }
-
-          if (
-            typeof parsed.sender !== "string" ||
-            typeof parsed.text !== "string"
-          ) {
-            console.error(
-              "Ignoring invalid input message payload"
-            );
-            return;
-          }
-
-          const replyTo =
-            typeof parsed.replyTo === "string"
-              ? parsed.replyTo
-              : undefined;
-
-          await handler({
-            id:
-              typeof parsed.id === "string"
-                ? parsed.id
-                : createMessageId(),
-            sender: parsed.sender,
-            text: parsed.text,
-            timestamp:
-              typeof parsed.timestamp === "number"
-                ? parsed.timestamp
-                : Date.now(),
-            replyTo
-          });
         }
-      );
+      })().catch((error) => {
+        console.error("Consumer stream loop failed", error);
+      });
     }
   };
 }

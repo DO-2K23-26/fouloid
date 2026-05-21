@@ -1,15 +1,9 @@
-version: "3.9"
-
 services:
   iggy:
     image: apache/iggy:latest
-    container_name: iggy
-
     ports:
       - "8090:8090"
-
     environment:
       IGGY_TCP_ENABLED: "true"
       IGGY_TCP_ADDRESS: "0.0.0.0:8090"
-
     restart: unless-stopped

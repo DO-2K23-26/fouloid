@@ -19,8 +19,8 @@
     }
   },
   "scripts": {
-    "start": "node --conditions=source --import tsx src/index.ts",
-    "dev": "node --conditions=source --watch --import tsx src/index.ts",
+    "start": "node --env-file=.env --conditions=source --import tsx src/index.ts",
+    "dev": "node --env-file=.env --conditions=source --watch --import tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json"
   },
@@ -32,6 +32,7 @@
     "@langchain/core": "^1.1.47",
     "@langchain/ollama": "^1.2.7",
     "@langchain/openai": "^1.4.6",
+    "apache-iggy": "0.8.1-edge.1",
     "langchain": "^1.4.1"
   },
   "devDependencies": {
