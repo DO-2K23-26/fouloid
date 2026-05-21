@@ -1,6 +1,6 @@
+import { pathToFileURL } from "node:url";
 import { startApplication } from "./app/startApplication.js";
 import { getConfigFromEnv } from "./config/getConfigFromEnv.js";
-import { pathToFileURL } from "node:url";
 
 async function main() {
   await startApplication(getConfigFromEnv());
