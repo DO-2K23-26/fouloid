@@ -39,24 +39,27 @@ export async function createIggyConnection(
   >
 ) {
   const clientConfig = createIggyClientConfig(config);
+  const { host, port } = clientConfig.options as { host: string; port: number };
+
+  console.log(`[iggy] connecting to ${host}:${port} as ${config.iggyUsername}`);
   const client = new Client(clientConfig);
 
   const stream = await client.stream.ensure(config.topics.stream);
-  console.log(`Stream ready: ${stream.name} (id=${stream.id})`);
+  console.log(`[iggy] stream ready: ${stream.name} (id=${stream.id})`);
 
   const inputTopic = await client.topic.ensure(
     stream.id,
     config.topics.inputTopic,
     1
   );
-  console.log(`Topic ready: ${inputTopic.name} (id=${inputTopic.id})`);
+  console.log(`[iggy] topic ready: ${inputTopic.name} (id=${inputTopic.id})`);
 
   const outputTopic = await client.topic.ensure(
     stream.id,
     config.topics.outputTopic,
     1
   );
-  console.log(`Topic ready: ${outputTopic.name} (id=${outputTopic.id})`);
+  console.log(`[iggy] topic ready: ${outputTopic.name} (id=${outputTopic.id})`);
 
   return { client, clientConfig };
 }

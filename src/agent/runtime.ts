@@ -54,12 +54,21 @@ export function createLangChainAgentRuntime({
 }) {
   return {
     async handleMessage(message: AgentMessage) {
+      console.log(
+        `[agent] invoking model for id=${message.id} (${message.text.length} chars in)`
+      );
+      const startedAt = Date.now();
+
       const response = await model.invoke([
         new SystemMessage(systemPrompt),
         new HumanMessage(message.text)
       ]);
 
       const text = normalizeTextContent(response.content);
+      const elapsedMs = Date.now() - startedAt;
+      console.log(
+        `[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`
+      );
 
       await messenger.send({
         id: createMessageId(),
