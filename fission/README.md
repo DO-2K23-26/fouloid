@@ -253,14 +253,11 @@ kubectl exec -n fission-dev <pod> -c nodejs-baptiste -- ls /var/run/secrets/kube
 ## Deploying `deploy-pauline`
 
 ```bash
-# Package (zip must contain a file named exactly like the function)
-zip deploy-pauline.zip deploy-pauline.js
-
-# Create the function
+# Create the function (single file, no zip needed)
 fission fn create \
   --name deploy-pauline \
   --env nodejs-baptiste \
-  --deployarchive deploy-pauline.zip \
+  --code deploy-pauline.js \
   --namespace fission-dev
 
 # Expose it
@@ -277,8 +274,7 @@ To redeploy after code changes:
 ```bash
 fission fn delete --name deploy-pauline --namespace fission-dev
 fission httptrigger delete --name deploy-pauline-trigger --namespace fission-dev
-zip deploy-pauline.zip deploy-pauline.js
-fission fn create --name deploy-pauline --env nodejs-baptiste --deployarchive deploy-pauline.zip --namespace fission-dev
+fission fn create --name deploy-pauline --env nodejs-baptiste --code deploy-pauline.js --namespace fission-dev
 fission httptrigger create --name deploy-pauline-trigger --url /deploy-pauline --method POST --function deploy-pauline --namespace fission-dev
 ```
 
