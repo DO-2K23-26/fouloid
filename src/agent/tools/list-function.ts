@@ -8,7 +8,7 @@ type FissionFunction = {
 };
 
 export async function listFunctions(): Promise<string> {
-  const res = await fetch(`${getFissionApiBaseUrl()}/v2/functions`);
+  const res = await fetch(`${getFissionApiBaseUrl()}/list-functions`);
   if (!res.ok) {
     throw new Error(`Failed to list functions: ${res.status} ${await res.text()}`);
   }
