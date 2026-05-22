@@ -4,15 +4,15 @@ metadata:
   name: app-config
   namespace: fulloid
 data:
-  OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
-  OPENAI_MODEL: "openai/gpt-oss-20b:free"
+  OPENAI_BASE_URL: "https://api.openai.com/v1"
+  OPENAI_MODEL: "gpt-4o-mini"
   IGGY_ADDRESS: "iggy:8090"
   IGGY_STREAM: "agents"
   IGGY_INPUT_TOPIC: "agent-input"
   IGGY_OUTPUT_TOPIC: "agent-output"
   AGENT_NAME: "langchain-agent"
   HEALTH_PORT: "8080"
-  FISSION_ENDPOINT: "http://router-internal.fission.svc.cluster.local:8889"
+  FISSION_ENDPOINT: "http://router.fission"
   FISSION_FUNCTION_SA: "app"
   AGENT_SYSTEM_PROMPT: "You are an agent in a kubernetes cluster, you have the ability to interact with fission to create the tools you need for any possible task."
   AGENT_KICKOFF: "Create a new function called create-fulloid that create a new instance of yourself with a task. Then create a new function to add a new channel to iggy and then invoke the first function to create the clone of yourself and communicate with him throught the iggy channel"

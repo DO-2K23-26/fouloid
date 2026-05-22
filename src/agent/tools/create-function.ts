@@ -1,81 +1,36 @@
 import { tool } from "langchain";
 import z from "zod";
-import {
-  getFissionApiBaseUrl,
-  getFissionFunctionServiceAccount,
-} from "./fission-config.js";
-
-async function post(path: string, body: unknown): Promise<Response> {
-  return fetch(`${getFissionApiBaseUrl()}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
+import { getFissionApiBaseUrl } from "./fission-config.js";
 
 export async function createFunction(
-  functionName: string,
-  envName: string,
-  code: string
+  name: string,
+  code: string,
+  httpMethod: string,
+  route: string
 ): Promise<string> {
-  const serviceAccountName = getFissionFunctionServiceAccount();
-  const envRes = await post("/v2/environments", {
-    metadata: { name: envName, namespace: "default" },
-    spec: {
-      version: 3,
-      runtime: { image: `fission/${envName}-env` },
-    },
+  const res = await fetch(`${getFissionApiBaseUrl()}/create-function`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, code, httpMethod, route }),
   });
-  if (!envRes.ok && envRes.status !== 409) {
-    throw new Error(`Failed to create environment: ${envRes.status} ${await envRes.text()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to create function: ${res.status} ${await res.text()}`);
   }
-
-  const pkgName = `${functionName}-pkg`;
-  const pkgRes = await post("/v2/packages", {
-    metadata: { name: pkgName, namespace: "default" },
-    spec: {
-      environment: { name: envName, namespace: "default" },
-      source: {
-        type: "literal",
-        literal: Buffer.from(code).toString("base64"),
-      },
-    },
-  });
-  if (!pkgRes.ok && pkgRes.status !== 409) {
-    throw new Error(`Failed to create package: ${pkgRes.status} ${await pkgRes.text()}`);
-  }
-
-  const fnRes = await post("/v2/functions", {
-    metadata: { name: functionName, namespace: "default" },
-    spec: {
-      environment: { name: envName, namespace: "default" },
-      package: {
-        packageRef: { name: pkgName, namespace: "default" },
-        functionName,
-      },
-      ...(serviceAccountName && {
-        podspec: { serviceAccountName },
-      }),
-    },
-  });
-  if (!fnRes.ok) {
-    throw new Error(`Failed to create function: ${fnRes.status} ${await fnRes.text()}`);
-  }
-
-  return `Function "${functionName}" created in environment "${envName}".`;
+  return `Function "${name}" created at ${httpMethod} ${route}.`;
 }
 
 export const createFunctionTool = tool(
-  async ({ functionName, envName, code }) => {
-    return await createFunction(functionName, envName, code);
+  async ({ name, code, httpMethod, route }) => {
+    return await createFunction(name, code, httpMethod, route);
   },
   {
     name: "create_function",
-    description: "Create a Fission environment (if needed) then deploy a function to it",
+    description: "Deploy a Fission function exposed as an HTTP endpoint",
     schema: z.object({
-      functionName: z.string().min(1).describe("Name of the Fission function"),
-      envName: z.string().min(1).describe("Fission environment name (e.g. node, python)"),
+      name: z.string().min(1).describe("Name of the Fission function"),
       code: z.string().describe("Source code of the function"),
+      httpMethod: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]).describe("HTTP method for the function route"),
+      route: z.string().min(1).describe("URL route for the function (e.g. /create-fulloid)"),
     }),
   },
 );

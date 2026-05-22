@@ -1,10 +1,5 @@
-import { AIMessage } from "@langchain/core/messages";
 import type { ChatOpenAI } from "@langchain/openai";
-import type {
-  AgentMessage,
-  IggyMessenger
-} from "../types/agent.js";
-import { createAgent } from "langchain";
+import type { AgentMessage, IggyMessenger } from "../types/agent.js";
 import { invokeFunctionTool } from "./tools/invoke-function.js";
 import { createFunctionTool } from "./tools/create-function.js";
 import { listFunctionsTool } from "./tools/list-function.js";
@@ -13,7 +8,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
   "Reply briefly and clearly.",
   "Treat each incoming queue message as the latest user input.",
-  "If a message asks you to tell another agent to do something, reply with the actionable instruction itself instead of a short acknowledgement."
+  "If a message asks you to tell another agent to do something, reply with the actionable instruction itself instead of a short acknowledgement.",
 ].join(" ");
 
 function createMessageId() {
@@ -46,27 +41,11 @@ function normalizeTextContent(content: unknown) {
   return String(content ?? "");
 }
 
-function extractFinalAssistantText(messages: unknown) {
-  if (!Array.isArray(messages)) {
-    return "";
-  }
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-
-    if (AIMessage.isInstance(message)) {
-      return normalizeTextContent(message.content);
-    }
-  }
-
-  return "";
-}
-
 export function createLangChainAgentRuntime({
   agentName,
   model,
   messenger,
-  systemPrompt = DEFAULT_SYSTEM_PROMPT
+  systemPrompt = DEFAULT_SYSTEM_PROMPT,
 }: {
   agentName: string;
   model: ChatOpenAI;
@@ -76,39 +55,95 @@ export function createLangChainAgentRuntime({
   return {
     async handleMessage(message: AgentMessage) {
       console.log(
-        `[agent] invoking model for id=${message.id} (${message.text.length} chars in)`
+        `[agent] invoking model for id=${message.id} (${message.text.length} chars in)`,
       );
       const startedAt = Date.now();
 
-      const agent = createAgent({
-        model,
-        systemPrompt,
-        tools: [invokeFunctionTool, createFunctionTool, listFunctionsTool],
-      });
+      const tools = [invokeFunctionTool, createFunctionTool, listFunctionsTool];
+      const modelWithTools = model.bindTools(tools);
 
-      const response = await agent.invoke(
+      const messages: Array<{
+        role: string;
+        content: string;
+        tool_call_id?: string;
+      }> = [
         {
-          messages: [{ role: "user", content: message.text }],
+          role: "user",
+          content: systemPrompt + "\n\n" + message.text,
         },
-        {
-          configurable: { thread_id: crypto.randomUUID() },
-          context: { user_name: "John Smith" },
-        },
-      )
+      ];
 
-      const text = extractFinalAssistantText(response.messages);
-      const elapsedMs = Date.now() - startedAt;
-      console.log(
-        `[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`
-      );
+      let shouldContinue = true;
 
-      await messenger.send({
-        id: createMessageId(),
-        sender: agentName,
-        text,
-        timestamp: Date.now(),
-        replyTo: message.id
-      });
-    }
+      while (shouldContinue) {
+        const response = await modelWithTools.invoke(messages);
+
+        if (!response.tool_calls || response.tool_calls.length === 0) {
+          // No more tool calls, extract final response
+          const text =
+            typeof response.content === "string"
+              ? response.content
+              : normalizeTextContent(response.content);
+
+          const elapsedMs = Date.now() - startedAt;
+          console.log(
+            `[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`,
+          );
+
+          await messenger.send({
+            id: createMessageId(),
+            sender: agentName,
+            text,
+            timestamp: Date.now(),
+            replyTo: message.id,
+          });
+
+          shouldContinue = false;
+          break;
+        }
+
+        // Add assistant message with tool calls
+        messages.push({
+          role: "assistant",
+          content:
+            typeof response.content === "string"
+              ? response.content
+              : normalizeTextContent(response.content),
+        });
+
+        // Process tool calls
+        for (const toolCall of response.tool_calls) {
+          console.log(`[agent] executing tool: ${toolCall.name}`);
+
+          const tool = tools.find((t) => t.name === toolCall.name) as any;
+          if (!tool) {
+            console.error(`[agent] tool not found: ${toolCall.name}`);
+            continue;
+          }
+
+          try {
+            const toolResult = await tool.invoke(toolCall.args);
+            console.log(
+              `[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 100)}`,
+            );
+
+            messages.push({
+              role: "tool",
+              content: String(toolResult),
+              tool_call_id: toolCall.id,
+            });
+          } catch (error) {
+            const errorMsg =
+              error instanceof Error ? error.message : String(error);
+            console.error(`[agent] tool ${toolCall.name} failed: ${errorMsg}`);
+            messages.push({
+              role: "tool",
+              content: `Error: ${errorMsg}`,
+              tool_call_id: toolCall.id,
+            });
+          }
+        }
+      }
+    },
   };
 }
