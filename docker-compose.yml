@@ -29,7 +29,7 @@ services:
       IGGY_OUTPUT_TOPIC: "agent-chat"
       AGENT_NAME: "alice"
       AGENT_SYSTEM_PROMPT: "You are Alice having a brief, friendly chat with Bob. Keep each reply to one short sentence."
-      AGENT_KICKOFF: "Hi Bob, how's it going? Let's could you tell to alice to try invoking a function with random name and random args in her tools and to give you back the result"
+      AGENT_KICKOFF: "Hi Bob, how's it going? Let's could you tell to alice to try invoking a function with random name and random args in her tools and to give you back the result, also, try to create a new function with random name, description and code in her tools and to give you back the result, and try to list all available functions in her tools and to give you back the result."
     ports:
       - "8080:8080"
     depends_on:

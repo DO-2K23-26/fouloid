@@ -6,6 +6,8 @@ import type {
 } from "../types/agent.js";
 import { createAgent } from "langchain";
 import { invokeFunctionTool } from "./tools/invoke-function.js";
+import { createFunctionTool } from "./tools/create-function.js";
+import { listFunctionsTool } from "./tools/list-function.js";
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
@@ -63,7 +65,7 @@ export function createLangChainAgentRuntime({
 
       const agent = createAgent({
         model,
-        tools: [invokeFunctionTool],
+        tools: [invokeFunctionTool, createFunctionTool, listFunctionsTool],
       });
 
       const response = await agent.invoke(

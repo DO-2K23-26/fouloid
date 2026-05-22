@@ -3,8 +3,8 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@11.1.3 --activate
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -17,7 +17,7 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@11.1.3 --activate && apk add --no-cache netcat-openbsd
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=builder /app/dist ./dist
