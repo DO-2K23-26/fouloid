@@ -30,6 +30,7 @@ The function is a **bash script** that shells out to the `fission` CLI using the
 Image: `popopolette/fission-env-bash:0.0.1`
 
 A custom Alpine image built for this use case. It contains:
+
 - **Python** — minimal HTTP server implementing the Fission runtime protocol (specialize + dispatch)
 - **bash + jq** — to run shell scripts and parse JSON request bodies
 - **`fission` CLI** at `/usr/local/bin/fission` — to create functions and triggers from inside a pod
@@ -43,23 +44,24 @@ Image: `baraly/fulloid-faas:0.0.5`
 Custom Node.js 22 runtime. Functions deployed via `deploy-pauline` land here by default.
 
 It includes:
+
 - **A fixed `server.js`** — the stock Fission Node.js runtime couldn't load extension-less files; this image fixes that
 - **`fission` CLI** at `/usr/local/bin/fission`
 - **A large set of pre-installed npm packages** (no bundling needed)
 
-| Category | Packages |
-|----------|----------|
-| HTTP | `axios`, `node-fetch` |
-| AI / LLM | `openai`, `@anthropic-ai/sdk`, `@langchain/core`, `@langchain/openai`, `@langchain/anthropic`, `langchain` |
-| Validation | `zod` |
-| Messaging | `nats`, `amqplib`, `amqp-connection-manager`, `kafkajs` |
-| Database | `pg`, `ioredis` |
-| Queue | `bull`, `p-queue`, `p-retry`, `bottleneck` |
-| Kubernetes | `@kubernetes/client-node` |
-| Utilities | `uuid`, `nanoid`, `lodash` |
-| Observability | `prom-client` |
-| WebSocket | `ws` |
-| AST | `acorn`, `@babel/parser`, `@babel/generator` |
+| Category      | Packages                                                                                                   |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| HTTP          | `axios`, `node-fetch`                                                                                      |
+| AI / LLM      | `openai`, `@anthropic-ai/sdk`, `@langchain/core`, `@langchain/openai`, `@langchain/anthropic`, `langchain` |
+| Validation    | `zod`                                                                                                      |
+| Messaging     | `nats`, `amqplib`, `amqp-connection-manager`, `kafkajs`                                                    |
+| Database      | `pg`, `ioredis`                                                                                            |
+| Queue         | `bull`, `p-queue`, `p-retry`, `bottleneck`                                                                 |
+| Kubernetes    | `@kubernetes/client-node`                                                                                  |
+| Utilities     | `uuid`, `nanoid`, `lodash`                                                                                 |
+| Observability | `prom-client`                                                                                              |
+| WebSocket     | `ws`                                                                                                       |
+| AST           | `acorn`, `@babel/parser`, `@babel/generator`                                                               |
 
 ---
 
@@ -180,24 +182,30 @@ fission httptrigger create --name deploy-pauline-trigger --url /deploy-pauline -
 
 ### `POST /deploy-pauline`
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `name` | string | yes | — | Function name. Must match `[a-z0-9-]+`. |
-| `code` | string | yes | — | Full source code of the function (CJS). |
-| `method` | string | no | `GET` | HTTP method: GET, POST, PUT, DELETE, HEAD. |
-| `route` | string | no | `/{name}` | URL path for the HTTP trigger. |
-| `environment` | string | no | `nodejs-baptiste` | Fission environment to use. |
-| `namespace` | string | no | `fission-dev` | Kubernetes namespace. |
+| Field         | Type   | Required | Default           | Description                                |
+| ------------- | ------ | -------- | ----------------- | ------------------------------------------ |
+| `name`        | string | yes      | —                 | Function name. Must match `[a-z0-9-]+`.    |
+| `code`        | string | yes      | —                 | Full source code of the function (CJS).    |
+| `method`      | string | no       | `GET`             | HTTP method: GET, POST, PUT, DELETE, HEAD. |
+| `route`       | string | no       | `/{name}`         | URL path for the HTTP trigger.             |
+| `environment` | string | no       | `nodejs-baptiste` | Fission environment to use.                |
+| `namespace`   | string | no       | `fission-dev`     | Kubernetes namespace.                      |
 
 **Success (200):**
+
 ```json
 { "success": true, "function": "my-func", "route": "/my-func" }
 ```
 
 **Error (200 with error field):**
+
 ```json
 { "error": "name and code are required" }
 ```
+
+### `GET /list-functions`
+
+Returns a list of all functions deployed via `liste-function-baptiste` in the cluster.
 
 ---
 
@@ -211,7 +219,7 @@ module.exports = async function (context) {
   return {
     status: 200,
     body: { hello: "world" },
-    headers: {},  // optional
+    headers: {}, // optional
   };
 };
 ```
