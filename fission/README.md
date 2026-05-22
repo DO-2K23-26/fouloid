@@ -7,7 +7,7 @@
 ## Architecture overview
 
 ```
-POST /deploy-pauline  →  deploy-pauline function (nodejs-baptiste env)
+POST /deploy-pauline  →  deploy-pauline.sh (bash-pauline env)
                                │
                                │  fission CLI (in-pod, in-cluster auth)
                                ▼
@@ -19,33 +19,33 @@ POST /deploy-pauline  →  deploy-pauline function (nodejs-baptiste env)
                (CRD: code)  (CRD)      (CRD: route)
 ```
 
-The function shells out to the `fission` CLI (available at `/usr/local/bin/fission` inside the image) using the pod's mounted service account token for Kubernetes auth. No kubeconfig needed on the caller's machine.
+The function is a **bash script** that shells out to the `fission` CLI using the pod's mounted service account token. The created functions run on `nodejs-baptiste` (Node.js 22).
 
 ---
 
-## The `nodejs-baptiste` environment
+## Environments
 
-### What is a Fission environment?
+### `bash-pauline` — runs `deploy-pauline`
 
-In Fission, an **environment** is a pre-warmed pool of pods that can run functions. When you call a function for the first time, Fission picks a warm pod from the pool, injects your function code into it (via the fetcher sidecar), and keeps it alive for subsequent calls. This is the **poolmgr** (pool manager) executor strategy.
+Image: `popopolette/fission-env-bash:0.0.1`
 
-The environment defines:
-- which Docker image to use as the runtime
-- how many pods to keep warm (`poolsize`)
-- environment variables (e.g. `NODE_PATH`, `LOAD_ESM`)
+A custom Alpine image built for this use case. It contains:
+- **Python** — minimal HTTP server implementing the Fission runtime protocol (specialize + dispatch)
+- **bash + jq** — to run shell scripts and parse JSON request bodies
+- **`fission` CLI** at `/usr/local/bin/fission` — to create functions and triggers from inside a pod
 
-### The image: `baraly/fulloid-faas:0.0.5`
+Source: `fission/bash-env/`
 
-This is a custom Node.js 22 runtime image built for this cluster. It extends the standard Fission Node.js runtime with:
+### `nodejs-baptiste` — runs all other functions
 
-- **The `fission` CLI binary** at `/usr/local/bin/fission` — allows functions to programmatically create other functions from inside a pod
-- **A fixed `server.js`** — the stock Fission Node.js runtime had a bug where it couldn't load extension-less files (the fetcher stores code at `/userfunc/deployarchive` with no `.js` extension). This image fixes that.
-- **`LOAD_ESM` support** — the runtime defaults to ESM mode but respects `LOAD_ESM=false` to switch to CJS. Functions written with `module.exports` are CJS.
-- **A large set of pre-installed npm packages** so functions don't need bundling.
+Image: `baraly/fulloid-faas:0.0.5`
 
-### Pre-installed packages
+Custom Node.js 22 runtime. Functions deployed via `deploy-pauline` land here by default.
 
-All of these are available via `require(...)` in any function without bundling:
+It includes:
+- **A fixed `server.js`** — the stock Fission Node.js runtime couldn't load extension-less files; this image fixes that
+- **`fission` CLI** at `/usr/local/bin/fission`
+- **A large set of pre-installed npm packages** (no bundling needed)
 
 | Category | Packages |
 |----------|----------|
@@ -61,94 +61,11 @@ All of these are available via `require(...)` in any function without bundling:
 | WebSocket | `ws` |
 | AST | `acorn`, `@babel/parser`, `@babel/generator` |
 
-### Environment spec (current state)
-
-```bash
-kubectl get environment nodejs-baptiste -n fission-dev -o yaml
-```
-
-Key fields:
-- `spec.runtime.image: baraly/fulloid-faas:0.0.5`
-- `spec.poolsize: 3` — 3 warm pods always running
-- `spec.runtime.podspec.serviceAccountName: fouloid-deployer` — patched to allow the fission CLI to authenticate
-- `spec.runtime.podspec.containers[0].volumeMounts` — patched to mount the SA token into the function container
-
 ---
 
 ## RBAC setup
 
-By default, Fission pool pods have no Kubernetes permissions. We created a dedicated `fouloid-deployer` service account with the permissions the `fission` CLI needs when running inside a pod.
-
-### Resources created
-
-**ServiceAccount** — the identity the pool pods run as:
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: fouloid-deployer
-  namespace: fission-dev
-```
-
-**Role** — namespace-scoped create/manage permissions for Fission CRDs:
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: fouloid-deployer
-  namespace: fission-dev
-rules:
-- apiGroups: ["fission.io"]
-  resources: ["packages", "functions", "httptriggers", "environments"]
-  verbs: ["create", "get", "list", "update", "delete"]
-```
-
-**RoleBinding** — binds the Role to the ServiceAccount:
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: fouloid-deployer
-  namespace: fission-dev
-subjects:
-- kind: ServiceAccount
-  name: fouloid-deployer
-  namespace: fission-dev
-roleRef:
-  kind: Role
-  name: fouloid-deployer
-  apiGroup: rbac.authorization.k8s.io
-```
-
-**ClusterRole** — the `fission` CLI also does cluster-scoped `list` on httptriggers to check for duplicates:
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: fouloid-deployer-cluster
-rules:
-- apiGroups: ["fission.io"]
-  resources: ["httptriggers", "functions", "packages", "environments"]
-  verbs: ["get", "list"]
-```
-
-**ClusterRoleBinding:**
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: fouloid-deployer-cluster
-subjects:
-- kind: ServiceAccount
-  name: fouloid-deployer
-  namespace: fission-dev
-roleRef:
-  kind: ClusterRole
-  name: fouloid-deployer-cluster
-  apiGroup: rbac.authorization.k8s.io
-```
-
-Apply everything at once:
+Both environments run as the `fouloid-deployer` ServiceAccount. It needs namespace-scoped permissions to create Fission CRDs, and cluster-scoped list permissions because the `fission` CLI checks for duplicate triggers cluster-wide.
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -208,59 +125,38 @@ EOF
 
 ---
 
-## Environment patch
+## Environment patch — `nodejs-baptiste`
 
-Two patches were applied to `nodejs-baptiste` so that the `fission` CLI can authenticate from inside a pool pod.
-
-By default, Fission sets `automountServiceAccountToken: false` on pool pods and only mounts the token in the fetcher sidecar — not in the function container. These patches fix that.
+By default Fission sets `automountServiceAccountToken: false` on pool pods and only mounts the SA token in the fetcher sidecar. This patch exposes the token to the function container too, so the `fission` CLI can authenticate.
 
 ```bash
-# 1. Switch the pod's service account and re-enable token automount
 kubectl patch environment nodejs-baptiste -n fission-dev --type=json -p '[
   {"op": "add", "path": "/spec/runtime/podspec/serviceAccountName", "value": "fouloid-deployer"},
   {"op": "add", "path": "/spec/runtime/podspec/automountServiceAccountToken", "value": true}
 ]'
 
-# 2. Mount the SA token volume into the function container
-#    (the volume already exists in the pod — the fetcher sidecar uses it — 
-#     but it was only mounted in the fetcher, not in the user function container)
 kubectl patch environment nodejs-baptiste -n fission-dev --type=json -p '[
   {"op": "replace", "path": "/spec/runtime/podspec/containers/0", "value": {
     "name": "nodejs-baptiste",
     "resources": {},
-    "volumeMounts": [
-      {
-        "name": "fission-fetcher-sa-token",
-        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
-        "readOnly": true
-      }
-    ]
+    "volumeMounts": [{"name": "fission-fetcher-sa-token", "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount", "readOnly": true}]
   }}
 ]'
 ```
 
-After patching, the pool manager automatically rolls out new pods. Verify:
-
-```bash
-kubectl get pods -n fission-dev -l environmentName=nodejs-baptiste
-# wait for new pods, then:
-kubectl exec -n fission-dev <pod> -c nodejs-baptiste -- ls /var/run/secrets/kubernetes.io/serviceaccount/
-# should show: ca.crt  namespace  token
-```
+The `bash-pauline` environment already has these settings baked into its spec (no extra patch needed).
 
 ---
 
 ## Deploying `deploy-pauline`
 
 ```bash
-# Create the function (single file, no zip needed)
 fission fn create \
   --name deploy-pauline \
-  --env nodejs-baptiste \
-  --code deploy-pauline.js \
+  --env bash-pauline \
+  --code fission/deploy-pauline.sh \
   --namespace fission-dev
 
-# Expose it
 fission httptrigger create \
   --name deploy-pauline-trigger \
   --url /deploy-pauline \
@@ -274,7 +170,7 @@ To redeploy after code changes:
 ```bash
 fission fn delete --name deploy-pauline --namespace fission-dev
 fission httptrigger delete --name deploy-pauline-trigger --namespace fission-dev
-fission fn create --name deploy-pauline --env nodejs-baptiste --code deploy-pauline.js --namespace fission-dev
+fission fn create --name deploy-pauline --env bash-pauline --code fission/deploy-pauline.sh --namespace fission-dev
 fission httptrigger create --name deploy-pauline-trigger --url /deploy-pauline --method POST --function deploy-pauline --namespace fission-dev
 ```
 
@@ -283,8 +179,6 @@ fission httptrigger create --name deploy-pauline-trigger --url /deploy-pauline -
 ## API reference
 
 ### `POST /deploy-pauline`
-
-**Body (JSON):**
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -295,36 +189,29 @@ fission httptrigger create --name deploy-pauline-trigger --url /deploy-pauline -
 | `environment` | string | no | `nodejs-baptiste` | Fission environment to use. |
 | `namespace` | string | no | `fission-dev` | Kubernetes namespace. |
 
-**Success response (200):**
+**Success (200):**
 ```json
 { "success": true, "function": "my-func", "route": "/my-func" }
 ```
 
-**Error response (400/500):**
+**Error (200 with error field):**
 ```json
 { "error": "name and code are required" }
 ```
-
-**Validation rules:**
-- `name`, `environment`, `namespace` must match `[a-z0-9-]+`
-- `route` is sanitized to `[a-z0-9-/_]` only
-- `method` must be GET, POST, PUT, DELETE, or HEAD
 
 ---
 
 ## Function code format
 
-Functions must be **CommonJS modules** (`module.exports`). The `nodejs-baptiste` environment runs in CJS mode by default.
+Functions run on `nodejs-baptiste` and must be **CommonJS modules**:
 
 ```javascript
 module.exports = async function (context) {
-  // context.request  — raw Express request (body, headers, query, params…)
-  // context.method   — HTTP method string
-
+  // context.request  — raw Express request (body, headers, query…)
   return {
     status: 200,
-    body: { hello: "world" },  // object or string
-    headers: {},               // optional
+    body: { hello: "world" },
+    headers: {},  // optional
   };
 };
 ```
@@ -332,29 +219,27 @@ module.exports = async function (context) {
 Arrow shorthand:
 
 ```javascript
-module.exports = async (ctx) => ({
-  status: 200,
-  body: "ok",
-});
+module.exports = async (ctx) => ({ status: 200, body: "ok" });
 ```
 
 ---
 
 ## How it works internally
 
-1. **Validates** the request (name, code, method, route, env, namespace).
-2. **Writes** the function code to a temp file at `/tmp/<name>-<ts>.js`.
-3. **Runs** `fission fn create --code <tempfile>` — this uploads the code to Fission's storage service and creates a `Package` + `Function` CRD.
-4. **Runs** `fission httptrigger create` — creates an `HTTPTrigger` CRD that maps the route to the function.
-5. **Deletes** the temp file.
+1. `deploy-pauline.sh` reads the JSON request body from **stdin** (how the bash env passes HTTP bodies).
+2. **`jq`** parses `name`, `code`, `method`, `route`, `environment`, `namespace` and validates them.
+3. The code is written to a temp file `/tmp/<name>-<ts>.js`.
+4. **`fission fn create --code`** uploads the file to Fission's storage and creates a `Package` + `Function` CRD.
+5. **`fission httptrigger create`** creates the `HTTPTrigger` CRD.
+6. The temp file is deleted and the result is echoed as JSON to stdout (which the Python server returns as the HTTP response).
 
-The `fission` CLI authenticates against the Kubernetes API using the service account token mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token` (the standard in-cluster config path).
+The `fission` CLI authenticates via the service account token at `/var/run/secrets/kubernetes.io/serviceaccount/token`.
 
 ---
 
 ## Example functions
 
-All examples below were tested and work end-to-end.
+All tested end-to-end.
 
 ### Echo — return the request body
 
@@ -368,7 +253,6 @@ curl -X POST http://<router>/deploy-pauline \
   }'
 ```
 
-Call it:
 ```bash
 curl -X POST http://<router>/ex-echo \
   -H "Content-Type: application/json" \
@@ -389,7 +273,6 @@ curl -X POST http://<router>/deploy-pauline \
   }'
 ```
 
-Call it:
 ```bash
 curl http://<router>/ex-github
 # → {"stars":8857,"forks":787,"name":"fission/fission"}
@@ -397,7 +280,7 @@ curl http://<router>/ex-github
 
 ---
 
-### UUID generator — unique ID + timestamp on every call
+### UUID generator
 
 ```bash
 curl -X POST http://<router>/deploy-pauline \
@@ -408,7 +291,6 @@ curl -X POST http://<router>/deploy-pauline \
   }'
 ```
 
-Call it:
 ```bash
 curl http://<router>/ex-uuid
 # → {"id":"d118456c-4784-4db8-b4fd-6bc43a6cd0de","ts":"2026-05-22T08:09:55.094Z"}
@@ -421,10 +303,4 @@ curl http://<router>/ex-uuid
 ```bash
 fission fn delete --name my-func --namespace fission-dev
 fission httptrigger delete --name my-func-trigger --namespace fission-dev
-```
-
-Or via kubectl:
-```bash
-kubectl delete function my-func -n fission-dev
-kubectl delete httptrigger my-func-trigger -n fission-dev
 ```
