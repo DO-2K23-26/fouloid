@@ -1,11 +1,12 @@
 import { tool } from "langchain";
 import z from "zod";
-
-const FISSION_ENDPOINT = process.env.FISSION_ENDPOINT ?? "http://localhost:8888";
-const FISSION_FUNCTION_SA = process.env.FISSION_FUNCTION_SA ?? "";
+import {
+  getFissionApiBaseUrl,
+  getFissionFunctionServiceAccount,
+} from "./fission-config.js";
 
 async function post(path: string, body: unknown): Promise<Response> {
-  return fetch(`${FISSION_ENDPOINT}${path}`, {
+  return fetch(`${getFissionApiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -17,6 +18,7 @@ export async function createFunction(
   envName: string,
   code: string
 ): Promise<string> {
+  const serviceAccountName = getFissionFunctionServiceAccount();
   const envRes = await post("/v2/environments", {
     metadata: { name: envName, namespace: "default" },
     spec: {
@@ -51,8 +53,8 @@ export async function createFunction(
         packageRef: { name: pkgName, namespace: "default" },
         functionName,
       },
-      ...(FISSION_FUNCTION_SA && {
-        podspec: { serviceAccountName: FISSION_FUNCTION_SA },
+      ...(serviceAccountName && {
+        podspec: { serviceAccountName },
       }),
     },
   });

@@ -1,21 +1,11 @@
 import { tool } from "langchain";
 import z from "zod";
+import { getFissionRouterUrl } from "./fission-config.js";
 
 function getFissionFunctionUrl(functionName: string) {
-  const routerUrl = process.env.FISSION_ROUTER_URL;
-
-  if (!routerUrl) {
-    throw new Error(
-      "FISSION_ROUTER_URL is required to invoke registered Fission functions."
-    );
-  }
-
-  const normalizedRouterUrl = routerUrl.endsWith("/")
-    ? routerUrl.slice(0, -1)
-    : routerUrl;
   const encodedFunctionName = encodeURIComponent(functionName);
 
-  return `${normalizedRouterUrl}/${encodedFunctionName}`;
+  return `${getFissionRouterUrl()}/${encodedFunctionName}`;
 }
 
 export async function invokeFunction(
