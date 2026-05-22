@@ -4,6 +4,8 @@ import type {
   AgentMessage,
   IggyMessenger
 } from "../types/agent.js";
+import { createAgent } from "langchain";
+import { invokeFunctionTool } from "./tools/invoke-function.js";
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
@@ -59,12 +61,22 @@ export function createLangChainAgentRuntime({
       );
       const startedAt = Date.now();
 
-      const response = await model.invoke([
-        new SystemMessage(systemPrompt),
-        new HumanMessage(message.text)
-      ]);
+      const agent = createAgent({
+        model,
+        tools: [invokeFunctionTool],
+      });
 
-      const text = normalizeTextContent(response.content);
+      const response = await agent.invoke(
+        {
+          messages: [{ role: "user", content: message.text }, { role: "system", content: systemPrompt }],
+        },
+        {
+          configurable: { thread_id: crypto.randomUUID() },
+          context: { user_name: "John Smith" },
+        },
+      )
+
+      const text = normalizeTextContent(response.messages);
       const elapsedMs = Date.now() - startedAt;
       console.log(
         `[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`

@@ -5,6 +5,7 @@ import { startHealthServer } from "../health/server.js";
 import { createIggyConnection } from "../iggy/connection.js";
 import { createIggyMessenger } from "../iggy/messenger.js";
 import type { AgentAppConfig } from "../types/agent.js";
+import { createAgent } from "langchain";
 
 export async function startApplication(
   config: AgentAppConfig
@@ -33,7 +34,7 @@ export async function startApplication(
   try {
     await model.invoke([new HumanMessage("ping")]);
   } catch (error) {
-    await client.destroy().catch(() => {});
+    await client.destroy().catch(() => { });
     const reason =
       error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -43,7 +44,7 @@ export async function startApplication(
   }
   console.log(`[app] model probe ok`);
 
-  const agent = createLangChainAgentRuntime({
+  const runtime = createLangChainAgentRuntime({
     agentName: config.agentName,
     model,
     messenger,
@@ -60,7 +61,7 @@ export async function startApplication(
       `[app] received id=${message.id} from ${message.sender}: ${message.text}`
     );
 
-    await agent.handleMessage(message);
+    await runtime.handleMessage(message);
   });
 
   await startHealthServer(config.healthPort, {

@@ -23,6 +23,9 @@ importers:
       langchain:
         specifier: ^1.4.1
         version: 1.4.1(@langchain/core@1.1.47(openai@6.38.0(zod@4.4.3)))(openai@6.38.0(zod@4.4.3))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.1
