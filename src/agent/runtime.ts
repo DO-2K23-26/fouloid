@@ -1,4 +1,4 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage } from "@langchain/core/messages";
 import type { ChatOpenAI } from "@langchain/openai";
 import type {
   AgentMessage,
@@ -12,7 +12,8 @@ import { listFunctionsTool } from "./tools/list-function.js";
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
   "Reply briefly and clearly.",
-  "Treat each incoming queue message as the latest user input."
+  "Treat each incoming queue message as the latest user input.",
+  "If a message asks you to tell another agent to do something, reply with the actionable instruction itself instead of a short acknowledgement."
 ].join(" ");
 
 function createMessageId() {
@@ -45,6 +46,22 @@ function normalizeTextContent(content: unknown) {
   return String(content ?? "");
 }
 
+function extractFinalAssistantText(messages: unknown) {
+  if (!Array.isArray(messages)) {
+    return "";
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (AIMessage.isInstance(message)) {
+      return normalizeTextContent(message.content);
+    }
+  }
+
+  return "";
+}
+
 export function createLangChainAgentRuntime({
   agentName,
   model,
@@ -65,12 +82,13 @@ export function createLangChainAgentRuntime({
 
       const agent = createAgent({
         model,
+        systemPrompt,
         tools: [invokeFunctionTool, createFunctionTool, listFunctionsTool],
       });
 
       const response = await agent.invoke(
         {
-          messages: [{ role: "user", content: message.text }, { role: "system", content: systemPrompt }],
+          messages: [{ role: "user", content: message.text }],
         },
         {
           configurable: { thread_id: crypto.randomUUID() },
@@ -78,7 +96,7 @@ export function createLangChainAgentRuntime({
         },
       )
 
-      const text = normalizeTextContent(response.messages);
+      const text = extractFinalAssistantText(response.messages);
       const elapsedMs = Date.now() - startedAt;
       console.log(
         `[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`
