@@ -34,6 +34,17 @@ export function createIggyMessenger(
       );
     },
 
+    async inject(message) {
+      await client.message.send({
+        streamId: topics.stream,
+        topicId: topics.inputTopic,
+        messages: [{ payload: JSON.stringify(message) }]
+      });
+      console.log(
+        `[iggy] injected id=${message.id} to ${topics.inputTopic} (${message.text.length} chars)`
+      );
+    },
+
     async subscribe(handler) {
       console.log(
         `[iggy] subscribing to ${topics.stream}/${topics.inputTopic} as group "${consumerGroup}"`

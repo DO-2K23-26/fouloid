@@ -30,6 +30,7 @@ export interface AgentAppConfig {
 
 export interface IggyMessenger {
   send(message: AgentMessage): Promise<void>;
+  inject(message: AgentMessage): Promise<void>;
   subscribe(
     handler: (message: AgentMessage) => Promise<void>
   ): Promise<void>;

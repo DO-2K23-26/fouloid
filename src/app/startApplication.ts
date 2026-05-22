@@ -75,12 +75,10 @@ export async function startApplication(
 
   if (config.kickoff) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    console.log(
-      `[app] kickoff: publishing id=${id} "${config.kickoff}"`
-    );
-    await messenger.send({
+    console.log(`[app] kickoff: processing id=${id} "${config.kickoff}"`);
+    await runtime.handleMessage({
       id,
-      sender: config.agentName,
+      sender: "system",
       text: config.kickoff,
       timestamp: Date.now()
     });

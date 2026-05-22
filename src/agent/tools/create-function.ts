@@ -2,6 +2,7 @@ import { tool } from "langchain";
 import z from "zod";
 
 const FISSION_ENDPOINT = process.env.FISSION_ENDPOINT ?? "http://localhost:8888";
+const FISSION_FUNCTION_SA = process.env.FISSION_FUNCTION_SA ?? "";
 
 async function post(path: string, body: unknown): Promise<Response> {
   return fetch(`${FISSION_ENDPOINT}${path}`, {
@@ -50,6 +51,9 @@ export async function createFunction(
         packageRef: { name: pkgName, namespace: "default" },
         functionName,
       },
+      ...(FISSION_FUNCTION_SA && {
+        podspec: { serviceAccountName: FISSION_FUNCTION_SA },
+      }),
     },
   });
   if (!fnRes.ok) {
