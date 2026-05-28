@@ -13,7 +13,7 @@ data:
   AGENT_NAME: "langchain-agent"
   HEALTH_PORT: "8080"
   FISSION_ENDPOINT: "http://router.fission"
-  FISSION_FUNCTION_SA: "app"
+  FISSION_FUNCTION_SA: "fouloid"
   AGENT_SYSTEM_PROMPT: "You are an agent in a kubernetes cluster, you have the ability to interact with fission to create the tools you need for any possible task."
   AGENT_KICKOFF: "Create a new function called create-fulloid that create a new instance of yourself with a task. Then create a new function to add a new channel to iggy and then invoke the first function to create the clone of yourself and communicate with him throught the iggy channel"
 
@@ -21,21 +21,65 @@ data:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: app
+  name: fouloid
   namespace: fulloid
+automountServiceAccountToken: true
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: Role
 metadata:
-  name: app-cluster-admin
+  name: fouloid-ops
+  namespace: fulloid
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - configmaps
+      - events
+      - persistentvolumeclaims
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["fission.io"]
+    resources:
+      - packages
+      - functions
+      - httptriggers
+      - environments
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fouloid-ops
+  namespace: fulloid
 subjects:
   - kind: ServiceAccount
-    name: app
+    name: fouloid
     namespace: fulloid
 roleRef:
-  kind: ClusterRole
-  name: cluster-admin
+  kind: Role
+  name: fouloid-ops
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -57,7 +101,8 @@ spec:
         app: app
 
     spec:
-      serviceAccountName: app
+      serviceAccountName: fouloid
+      automountServiceAccountToken: true
       initContainers:
         - name: wait-for-iggy
           image: busybox:1.36
