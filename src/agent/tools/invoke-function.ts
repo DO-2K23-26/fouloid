@@ -2,17 +2,20 @@ import { tool } from "langchain";
 import z from "zod";
 import { getFissionRouterUrl } from "./fission-config.js";
 
-function getFissionFunctionUrl(functionName: string) {
-  const encodedFunctionName = encodeURIComponent(functionName);
-
-  return `${getFissionRouterUrl()}/${encodedFunctionName}`;
+function getFissionFunctionUrl(functionName: string, route?: string) {
+  if (route) {
+    const path = route.startsWith("/") ? route : `/${route}`;
+    return `${getFissionRouterUrl()}${path}`;
+  }
+  return `${getFissionRouterUrl()}/${encodeURIComponent(functionName)}`;
 }
 
 export async function invokeFunction(
   functionName: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  route?: string
 ): Promise<string> {
-  const url = getFissionFunctionUrl(functionName);
+  const url = getFissionFunctionUrl(functionName, route);
   const startedAt = Date.now();
 
   console.log(`[fission] invoking ${functionName} via ${url}`);
@@ -61,14 +64,15 @@ export async function invokeFunction(
 }
 
 export const invokeFunctionTool = tool(
-  async ({ functionName, body }) => {
-    return invokeFunction(functionName, body);
+  async ({ functionName, route, body }) => {
+    return invokeFunction(functionName, body, route);
   },
   {
     name: "invoke_function",
-    description: "Allow to invoke a function that is already registered inside fission",
+    description: "Invoke a Fission function via its HTTP trigger. Use inspect_function or list_functions to get the exact route before calling.",
     schema: z.object({
       functionName: z.string().nonempty().describe("Name of the registered function"),
+      route: z.string().optional().describe("Exact HTTP route of the function (e.g. /create-fulloid). Use the route from list_functions or inspect_function. If omitted, defaults to /{functionName}."),
       body: z
         .record(z.string(), z.unknown())
         .describe("JSON body to send to the registered function")

@@ -21,8 +21,14 @@ export async function createFunction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Failed to create function: ${res.status} ${await res.text()}`);
+    throw new Error(`Failed to create function: ${res.status} ${text}`);
+  }
+  let parsed: Record<string, unknown>;
+  try { parsed = JSON.parse(text); } catch { parsed = {}; }
+  if (parsed.error) {
+    throw new Error(`Failed to create function "${name}": ${parsed.error}`);
   }
   return `Function "${name}" created at ${method ?? "GET"} ${route ?? `/${name}`}.`;
 }
@@ -36,7 +42,7 @@ export const createFunctionTool = tool(
     description: "Deploy a Fission function exposed as an HTTP endpoint",
     schema: z.object({
       name: z.string().regex(/^[a-z0-9-]+$/).describe("Function name (lowercase alphanumeric and hyphens)"),
-      code: z.string().describe("Full source code of the function (CJS)"),
+      code: z.string().describe("Full source code of the function. Must be a valid Node.js CJS module using: module.exports = async function(context) { const body = context.request.body; return { status: 200, body: 'result' }; }"),
       method: z.enum(["GET", "POST", "PUT", "DELETE", "HEAD"]).optional().describe("HTTP method (default: GET)"),
       route: z.string().optional().describe("URL path for the HTTP trigger (default: /{name})"),
       environment: z.string().optional().describe("Fission environment to use (default: nodejs-baptiste)"),

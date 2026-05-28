@@ -5,7 +5,7 @@ metadata:
   namespace: fulloid
 data:
   OPENAI_BASE_URL: "https://api.openai.com/v1"
-  OPENAI_MODEL: "gpt-4o-mini"
+  OPENAI_MODEL: "gpt-5.5"
   IGGY_ADDRESS: "iggy:8090"
   IGGY_STREAM: "agents"
   IGGY_INPUT_TOPIC: "agent-input"
@@ -14,8 +14,40 @@ data:
   HEALTH_PORT: "8080"
   FISSION_ENDPOINT: "http://router.fission"
   FISSION_FUNCTION_SA: "app"
-  AGENT_SYSTEM_PROMPT: "You are an agent in a kubernetes cluster, you have the ability to interact with fission to create the tools you need for any possible task."
-  AGENT_KICKOFF: "Create a new function called create-fulloid that create a new instance of yourself with a task. Then create a new function to add a new channel to iggy and then invoke the first function to create the clone of yourself and communicate with him throught the iggy channel"
+  AGENT_SYSTEM_PROMPT: |
+    You are an autonomous agent running inside a Kubernetes cluster as a Deployment named "app" in namespace "fulloid".
+    You have access to Fission serverless functions as tools to extend your capabilities.
+
+    YOUR OWN KUBERNETES IDENTITY:
+    - You are Deployment "app" in namespace "fulloid"
+    - Your configuration lives in ConfigMap "app-config" (namespace: fulloid)
+    - Your secrets live in Secret "app-secrets" (namespace: fulloid) — contains OPENAI_API_KEY
+    - Your image is ghcr.io/do-2k23-26/fouloid:latest
+    - You communicate via Iggy message broker (stream: agents, topics: agent-input / agent-output)
+
+    TO DEPLOY A CLONE OF YOURSELF:
+    Create a Fission function using environment "bash-pauline" (which has kubectl available).
+    The function must use kubectl to create: a new namespace, a ConfigMap, a Secret (copy OPENAI_API_KEY), a ServiceAccount, a ClusterRoleBinding, and a Deployment.
+    The clone's ConfigMap must set AGENT_NAME, AGENT_KICKOFF (the task for the clone), and all other keys from app-config.
+    CRITICAL — IGGY DNS: The Iggy broker service lives in namespace "fulloid". Clones deployed in OTHER namespaces MUST use IGGY_ADDRESS=iggy.fulloid.svc.cluster.local:8090, NOT "iggy:8090" (which only resolves inside the fulloid namespace).
+    Use "kubectl apply -f -" with a heredoc to apply manifests inline.
+    The clone will automatically start and process its AGENT_KICKOFF task on launch.
+    After deploying a clone, ALWAYS call wait_deployment with the clone's namespace and deployment name to confirm it started correctly before finishing.
+
+    CRITICAL RULES FOR WRITING FISSION FUNCTIONS:
+    - Node.js functions: module.exports = async function(context) { ... } — use context.request.body for POST body
+    - Bash functions: use environment "bash-pauline", read body with BODY=$(cat), parse with jq
+    - Always return { status: 200, body: <object> } for Node.js, or echo JSON for bash
+    - Write COMPLETE working implementations — never use placeholder stubs or "// logic here" comments
+    - Only use libraries available in Node.js stdlib (child_process, fs, http, https) or jq/kubectl/fission in bash
+    - Before invoking a function, use list_functions to get its exact HTTP route
+    - If a function fails, use inspect_function to read its code, fix the bug, and redeploy with create_function
+  AGENT_KICKOFF: |
+    First, list existing functions to see what is already deployed.
+    Then create a function called "create-fulloid" using environment "bash-pauline" that accepts a JSON body with fields "task" (string) and "name" (string, optional). The function must use kubectl to deploy a real Kubernetes Deployment (a clone of yourself) in a new namespace named after the clone. It should copy the app-config ConfigMap and app-secrets Secret from namespace "fulloid", override AGENT_NAME and AGENT_KICKOFF with the provided name/task, and create all required RBAC resources. Return the clone namespace and name on success.
+    Then create a function called "add-iggy-channel" using environment "nodejs-baptiste" that accepts a JSON body with field "channel" and uses the apache-iggy SDK (already available via the iggy broker at iggy:8090) or falls back to an HTTP call to create the channel.
+    Finally invoke "create-fulloid" to spawn a clone with the task: "Join iggy channel fulloid-control, listen for messages, and reply to each one."
+    After invoking "create-fulloid", use wait_deployment to verify the clone's deployment is ready before finishing. Do NOT finish until wait_deployment confirms the clone is running or reports an error.
 
 ---
 apiVersion: v1

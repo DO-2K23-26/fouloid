@@ -1,23 +1,17 @@
 import { tool } from "langchain";
 import z from "zod";
-import { getFissionApiBaseUrl } from "./fission-config.js";
-
-type FissionFunction = {
-  metadata: { name: string };
-  spec: { environment: { name: string } };
-};
+import { listFunctionsWithRoutes } from "./fission-triggers.js";
 
 export async function listFunctions(): Promise<string> {
-  const res = await fetch(`${getFissionApiBaseUrl()}/list-functions`);
-  if (!res.ok) {
-    throw new Error(`Failed to list functions: ${res.status} ${await res.text()}`);
-  }
-  const functions = (await res.json()) as FissionFunction[];
+  const functions = await listFunctionsWithRoutes();
   if (!functions.length) {
     return "No functions found.";
   }
   return functions
-    .map((f) => `- ${f.metadata.name} (env: ${f.spec.environment.name})`)
+    .map((f) => {
+      const endpoint = f.route ? `${f.method ?? "GET"} ${f.route}` : "(no HTTP trigger)";
+      return `- ${f.name} → ${endpoint}`;
+    })
     .join("\n");
 }
 
@@ -27,7 +21,7 @@ export const listFunctionsTool = tool(
   },
   {
     name: "list_functions",
-    description: "List all deployed Fission functions",
+    description: "List all deployed Fission functions with their HTTP route and method",
     schema: z.object({}),
   },
 );

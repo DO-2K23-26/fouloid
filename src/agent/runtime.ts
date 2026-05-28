@@ -4,6 +4,8 @@ import type { AgentMessage, IggyMessenger } from "../types/agent.js";
 import { invokeFunctionTool } from "./tools/invoke-function.js";
 import { createFunctionTool } from "./tools/create-function.js";
 import { listFunctionsTool } from "./tools/list-function.js";
+import { inspectFunctionTool } from "./tools/inspect-function.js";
+import { waitDeploymentTool } from "./tools/wait-deployment.js";
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
@@ -60,7 +62,7 @@ export function createLangChainAgentRuntime({
       );
       const startedAt = Date.now();
 
-      const tools = [invokeFunctionTool, createFunctionTool, listFunctionsTool];
+      const tools = [invokeFunctionTool, createFunctionTool, listFunctionsTool, inspectFunctionTool, waitDeploymentTool];
       const modelWithTools = model.bindTools(tools);
 
       const messages: any[] = [
@@ -112,7 +114,7 @@ export function createLangChainAgentRuntime({
           try {
             const toolResult = await tool.invoke(toolCall.args);
             console.log(
-              `[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 100)}`,
+              `[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 500)}`,
             );
 
             messages.push(new ToolMessage({
