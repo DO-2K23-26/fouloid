@@ -22,17 +22,22 @@ export async function startApplication(
     config.topics,
     config.agentName
   );
-  const model = new ChatOpenAI({
-    apiKey: config.openAI.apiKey,
-    model: config.openAI.model,
-    configuration: config.openAI.baseURL
-      ? { baseURL: config.openAI.baseURL }
-      : undefined
-  });
+  function buildModel(cfg: typeof config.openAI) {
+    return new ChatOpenAI({
+      apiKey: cfg.apiKey,
+      model: cfg.model,
+      configuration: cfg.baseURL ? { baseURL: cfg.baseURL } : undefined
+    });
+  }
 
-  console.log(`[app] probing model ${config.openAI.model}...`);
+  const codingModel = buildModel(config.openAI);
+  const reasoningModel = config.reasoningModel
+    ? buildModel(config.reasoningModel)
+    : codingModel;
+
+  console.log(`[app] probing coding model ${config.openAI.model}...`);
   try {
-    await model.invoke([new HumanMessage("ping")]);
+    await codingModel.invoke([new HumanMessage("ping")]);
   } catch (error) {
     await client.destroy().catch(() => { });
     const reason =
@@ -42,11 +47,27 @@ export async function startApplication(
       { cause: error instanceof Error ? error : undefined }
     );
   }
-  console.log(`[app] model probe ok`);
+  console.log(`[app] coding model probe ok`);
+
+  if (config.reasoningModel) {
+    console.log(`[app] probing reasoning model ${config.reasoningModel.model}...`);
+    try {
+      await reasoningModel.invoke([new HumanMessage("ping")]);
+    } catch (error) {
+      await client.destroy().catch(() => { });
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Reasoning model "${config.reasoningModel.model}" probe failed: ${reason}`,
+        { cause: error instanceof Error ? error : undefined }
+      );
+    }
+    console.log(`[app] reasoning model probe ok`);
+  }
 
   const runtime = createLangChainAgentRuntime({
     agentName: config.agentName,
-    model,
+    codingModel,
+    reasoningModel,
     messenger,
     systemPrompt: config.systemPrompt
   });

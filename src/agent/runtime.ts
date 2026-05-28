@@ -47,14 +47,18 @@ function normalizeTextContent(content: unknown) {
   return String(content ?? "");
 }
 
+const CODING_TOOLS = new Set(["create_function", "invoke_function", "inspect_function", "list_functions"]);
+
 export function createLangChainAgentRuntime({
   agentName,
-  model,
+  codingModel,
+  reasoningModel,
   messenger,
   systemPrompt = DEFAULT_SYSTEM_PROMPT,
 }: {
   agentName: string;
-  model: ChatOpenAI;
+  codingModel: ChatOpenAI;
+  reasoningModel: ChatOpenAI;
   messenger: IggyMessenger;
   systemPrompt?: string;
 }) {
@@ -72,7 +76,11 @@ export function createLangChainAgentRuntime({
         finishTool,
       ];
 
-      const modelWithTools = model.bindTools(tools, {
+      const reasoningWithTools = reasoningModel.bindTools(tools, {
+        parallel_tool_calls: false,
+        tool_choice: "required",
+      });
+      const codingWithTools = codingModel.bindTools(tools, {
         parallel_tool_calls: false,
         tool_choice: "required",
       });
@@ -82,9 +90,11 @@ export function createLangChainAgentRuntime({
       ];
 
       let shouldContinue = true;
+      // Start with reasoning model; switch to coding model when a coding tool is needed
+      let activeModel = reasoningWithTools;
 
       while (shouldContinue) {
-        const response = await modelWithTools.invoke(messages);
+        const response = await activeModel.invoke(messages);
 
         // No tool calls — treat content as final response (fallback for non-required models)
         if (!response.tool_calls || response.tool_calls.length === 0) {
@@ -98,8 +108,12 @@ export function createLangChainAgentRuntime({
 
         messages.push(response);
 
+        // Pick model for next turn based on the tool being called
+        const nextToolName = response.tool_calls?.[0]?.name ?? "";
+        activeModel = CODING_TOOLS.has(nextToolName) ? codingWithTools : reasoningWithTools;
+
         for (const toolCall of response.tool_calls) {
-          console.log(`[agent] executing tool: ${toolCall.name}`);
+          console.log(`[agent] executing tool: ${toolCall.name} (model=${CODING_TOOLS.has(toolCall.name) ? "coding" : "reasoning"})`);
 
           // finish tool — send the message and stop
           if (toolCall.name === "finish") {

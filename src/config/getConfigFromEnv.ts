@@ -29,6 +29,9 @@ export function getConfigFromEnv(): AgentAppConfig {
     );
   }
 
+  const reasoningModel = process.env.REASONING_MODEL;
+  const reasoningBaseURL = process.env.REASONING_BASE_URL;
+
   return {
     agentName,
     iggyAddress,
@@ -44,6 +47,9 @@ export function getConfigFromEnv(): AgentAppConfig {
       model,
       baseURL: process.env.OPENAI_BASE_URL
     },
+    reasoningModel: reasoningModel
+      ? { apiKey, model: reasoningModel, baseURL: reasoningBaseURL }
+      : undefined,
     systemPrompt: process.env.AGENT_SYSTEM_PROMPT,
     healthPort,
     kickoff: process.env.AGENT_KICKOFF

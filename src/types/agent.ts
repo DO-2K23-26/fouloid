@@ -12,17 +12,20 @@ export interface IggyTopicsConfig {
   outputTopic: string;
 }
 
+export interface ModelConfig {
+  apiKey: string;
+  model: string;
+  baseURL?: string;
+}
+
 export interface AgentAppConfig {
   agentName: string;
   iggyAddress: string;
   iggyUsername: string;
   iggyPassword: string;
   topics: IggyTopicsConfig;
-  openAI: {
-    apiKey: string;
-    model: string;
-    baseURL?: string;
-  };
+  openAI: ModelConfig;
+  reasoningModel?: ModelConfig;
   systemPrompt?: string;
   healthPort: number;
   kickoff?: string;

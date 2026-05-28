@@ -4,8 +4,10 @@ metadata:
   name: app-config
   namespace: fulloid
 data:
-  OPENAI_BASE_URL: "http://granite-4-1-8b-fp8-predictor.ai-benchmark.svc.cluster.local/v1"
-  OPENAI_MODEL: "granite-4-1-8b-fp8"
+  OPENAI_BASE_URL: "http://qwen3-coder-30b-fp8-predictor.ai-benchmark.svc.cluster.local/v1"
+  OPENAI_MODEL: "qwen3-coder-30b-fp8"
+  REASONING_BASE_URL: "http://granite-4-1-8b-fp8-predictor.ai-benchmark.svc.cluster.local/v1"
+  REASONING_MODEL: "granite-4-1-8b-fp8"
   IGGY_ADDRESS: "iggy:8090"
   IGGY_STREAM: "agents"
   IGGY_INPUT_TOPIC: "agent-input"
@@ -42,6 +44,8 @@ data:
     - Only use libraries available in Node.js stdlib (child_process, fs, http, https) or jq/kubectl/fission in bash
     - Before invoking a function, use list_functions to get its exact HTTP route
     - If a function fails, use inspect_function to read its code, fix the bug, and redeploy with create_function
+
+    NO MISTAKE ALLOWED
   AGENT_KICKOFF: |
     First, list existing functions to see what is already deployed.
     Then create a function called "create-fulloid" using environment "bash-pauline" that accepts a JSON body with fields "task" (string) and "name" (string, optional). The function must use kubectl to deploy a real Kubernetes Deployment (a clone of yourself) in a new namespace named after the clone. It should copy the app-config ConfigMap and app-secrets Secret from namespace "fulloid", override AGENT_NAME and AGENT_KICKOFF with the provided name/task, and create all required RBAC resources. Return the clone namespace and name on success.
