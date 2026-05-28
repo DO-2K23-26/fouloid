@@ -74,7 +74,7 @@ export const invokeFunctionTool = tool(
       functionName: z.string().nonempty().describe("Name of the registered function"),
       route: z.string().optional().describe("Exact HTTP route of the function (e.g. /create-fulloid). Use the route from list_functions or inspect_function. If omitted, defaults to /{functionName}."),
       body: z
-        .record(z.string(), z.unknown())
+        .object({}).catchall(z.unknown())
         .describe("JSON body to send to the registered function")
     }),
   },
