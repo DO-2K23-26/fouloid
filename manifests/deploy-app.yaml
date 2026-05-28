@@ -19,16 +19,6 @@ data:
 
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: app-secrets
-  namespace: fulloid
-type: Opaque
-stringData:
-  OPENAI_API_KEY: "changeme"
-
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: app

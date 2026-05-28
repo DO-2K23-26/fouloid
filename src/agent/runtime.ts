@@ -1,4 +1,5 @@
 import type { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { AgentMessage, IggyMessenger } from "../types/agent.js";
 import { invokeFunctionTool } from "./tools/invoke-function.js";
 import { createFunctionTool } from "./tools/create-function.js";
@@ -62,15 +63,8 @@ export function createLangChainAgentRuntime({
       const tools = [invokeFunctionTool, createFunctionTool, listFunctionsTool];
       const modelWithTools = model.bindTools(tools);
 
-      const messages: Array<{
-        role: string;
-        content: string;
-        tool_call_id?: string;
-      }> = [
-        {
-          role: "user",
-          content: systemPrompt + "\n\n" + message.text,
-        },
+      const messages: any[] = [
+        new HumanMessage(systemPrompt + "\n\n" + message.text),
       ];
 
       let shouldContinue = true;
@@ -102,14 +96,8 @@ export function createLangChainAgentRuntime({
           break;
         }
 
-        // Add assistant message with tool calls
-        messages.push({
-          role: "assistant",
-          content:
-            typeof response.content === "string"
-              ? response.content
-              : normalizeTextContent(response.content),
-        });
+        // Preserve assistant message with its tool_calls intact
+        messages.push(response);
 
         // Process tool calls
         for (const toolCall of response.tool_calls) {
@@ -127,20 +115,18 @@ export function createLangChainAgentRuntime({
               `[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 100)}`,
             );
 
-            messages.push({
-              role: "tool",
+            messages.push(new ToolMessage({
               content: String(toolResult),
-              tool_call_id: toolCall.id,
-            });
+              tool_call_id: toolCall.id ?? "",
+            }));
           } catch (error) {
             const errorMsg =
               error instanceof Error ? error.message : String(error);
             console.error(`[agent] tool ${toolCall.name} failed: ${errorMsg}`);
-            messages.push({
-              role: "tool",
+            messages.push(new ToolMessage({
               content: `Error: ${errorMsg}`,
-              tool_call_id: toolCall.id,
-            });
+              tool_call_id: toolCall.id ?? "",
+            }));
           }
         }
       }
