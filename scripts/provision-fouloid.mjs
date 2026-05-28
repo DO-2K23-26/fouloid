@@ -12,10 +12,11 @@ if (!agentName) {
   process.exit(1);
 }
 
-// Read the platform private key from K8s
-const platformPrivateKey = execSync(
+// Read the platform private key from K8s (stored JSON-stringified, normalize back to PEM)
+const rawKey = execSync(
   `kubectl get secret platform-signing-key -n ${namespace} -o jsonpath='{.data.private-key}' | base64 -d`
-).toString();
+).toString().trim();
+const platformPrivateKey = rawKey.startsWith('"') ? JSON.parse(rawKey) : rawKey.replace(/\\n/g, "\n");
 
 // Generate keypair for the fouloid
 const { privateKey, publicKey } = generateKeyPairSync("ed25519", {
