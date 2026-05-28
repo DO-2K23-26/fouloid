@@ -52,6 +52,11 @@ data:
     Then create a function called "add-iggy-channel" using environment "nodejs-baptiste" that accepts a JSON body with field "channel" and uses the apache-iggy SDK (already available via the iggy broker at iggy:8090) or falls back to an HTTP call to create the channel.
     Finally invoke "create-fulloid" to spawn a clone with the task: "Join iggy channel fulloid-control, listen for messages, and reply to each one."
     After invoking "create-fulloid", use wait_deployment to verify the clone's deployment is ready before finishing. Do NOT finish until wait_deployment confirms the clone is running or reports an error.
+  # Set via: node scripts/setup-platform-key.mjs — required, app will reject all messages if absent
+  # PLATFORM_PUBLIC_KEY: |
+  #   -----BEGIN PUBLIC KEY-----
+  #   ...
+  #   -----END PUBLIC KEY-----
 
 ---
 apiVersion: v1
@@ -114,6 +119,8 @@ spec:
                 name: app-config
             - secretRef:
                 name: app-secrets
+            - secretRef:
+                name: fouloid-app-keys
 
           ports:
             - containerPort: 8080

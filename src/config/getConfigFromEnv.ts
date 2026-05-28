@@ -32,6 +32,18 @@ export function getConfigFromEnv(): AgentAppConfig {
   const reasoningModel = process.env.REASONING_MODEL;
   const reasoningBaseURL = process.env.REASONING_BASE_URL;
 
+  const privateKey = process.env.FOULOID_PRIVATE_KEY;
+  const certificate = process.env.FOULOID_CERTIFICATE;
+  const platformPublicKey = process.env.PLATFORM_PUBLIC_KEY;
+
+  const hasAnyIdentityVar = privateKey || certificate || platformPublicKey;
+  const hasAllIdentityVars = privateKey && certificate && platformPublicKey;
+  if (hasAnyIdentityVar && !hasAllIdentityVars) {
+    throw new Error(
+      "Partial identity configuration: FOULOID_PRIVATE_KEY, FOULOID_CERTIFICATE and PLATFORM_PUBLIC_KEY must all be set or all be absent."
+    );
+  }
+
   return {
     agentName,
     iggyAddress,
@@ -52,6 +64,9 @@ export function getConfigFromEnv(): AgentAppConfig {
       : undefined,
     systemPrompt: process.env.AGENT_SYSTEM_PROMPT,
     healthPort,
-    kickoff: process.env.AGENT_KICKOFF
+    kickoff: process.env.AGENT_KICKOFF,
+    identity: hasAllIdentityVars
+      ? { privateKey: privateKey!, certificate: certificate!, platformPublicKey: platformPublicKey! }
+      : undefined,
   };
 }

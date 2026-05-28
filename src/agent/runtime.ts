@@ -90,10 +90,15 @@ export function createLangChainAgentRuntime({
       ];
 
       let shouldContinue = true;
-      // Start with reasoning model; switch to coding model when a coding tool is needed
       let activeModel = reasoningWithTools;
+      let iterations = 0;
+      const MAX_ITERATIONS = 20;
 
       while (shouldContinue) {
+        if (++iterations > MAX_ITERATIONS) {
+          console.error(`[agent] exceeded ${MAX_ITERATIONS} iterations for id=${message.id}, aborting`);
+          break;
+        }
         const response = await activeModel.invoke(messages);
 
         // No tool calls — treat content as final response (fallback for non-required models)

@@ -1,0 +1,37 @@
+# ServiceAccount used by the CA Fission function pod.
+# Only this SA can read the platform-signing-key Secret.
+# Authorization of callers is handled externally (network policy / service mesh).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fouloid-ca
+  namespace: fulloid
+
+---
+# Only the CA SA can read the platform private key.
+# Fouloid app pods do NOT get this permission.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-key-reader
+  namespace: fulloid
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["platform-signing-key"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-key-reader
+  namespace: fulloid
+subjects:
+  - kind: ServiceAccount
+    name: fouloid-ca
+    namespace: fulloid
+roleRef:
+  kind: Role
+  name: platform-key-reader
+  apiGroup: rbac.authorization.k8s.io

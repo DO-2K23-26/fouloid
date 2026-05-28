@@ -1,9 +1,25 @@
+export interface FouloidCertificate {
+  agentName: string;
+  publicKey: string;
+  issuedAt: number;
+  expiresAt: number;
+  platformSignature: string;
+}
+
+export interface AgentIdentityConfig {
+  privateKey: string;
+  certificate: string;
+  platformPublicKey: string;
+}
+
 export interface AgentMessage {
   id: string;
   sender: string;
   text: string;
   timestamp: number;
   replyTo?: string;
+  certificate?: string;
+  signature?: string;
 }
 
 export interface IggyTopicsConfig {
@@ -29,6 +45,7 @@ export interface AgentAppConfig {
   systemPrompt?: string;
   healthPort: number;
   kickoff?: string;
+  identity?: AgentIdentityConfig;
 }
 
 export interface IggyMessenger {

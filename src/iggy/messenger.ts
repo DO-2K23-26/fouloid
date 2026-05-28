@@ -5,10 +5,12 @@ import {
   groupConsumerStream
 } from "apache-iggy";
 import type {
+  AgentIdentityConfig,
   AgentMessage,
   IggyMessenger,
   IggyTopicsConfig
 } from "../types/agent.js";
+import { signMessage } from "../crypto/identity.js";
 
 type PollResponse = Awaited<ReturnType<Client["message"]["poll"]>>;
 
@@ -20,14 +22,20 @@ export function createIggyMessenger(
   client: Client,
   clientConfig: ClientConfig,
   topics: IggyTopicsConfig,
-  consumerGroup: string
+  consumerGroup: string,
+  identity?: AgentIdentityConfig
 ): IggyMessenger {
+  function prepare(message: AgentMessage): AgentMessage {
+    return identity ? signMessage(identity, message) : message;
+  }
+
   return {
     async send(message) {
+      const signed = prepare(message);
       await client.message.send({
         streamId: topics.stream,
         topicId: topics.outputTopic,
-        messages: [{ payload: JSON.stringify(message) }]
+        messages: [{ payload: JSON.stringify(signed) }]
       });
       console.log(
         `[iggy] sent id=${message.id} to ${topics.outputTopic} (${message.text.length} chars)`
@@ -35,10 +43,11 @@ export function createIggyMessenger(
     },
 
     async inject(message) {
+      const signed = prepare(message);
       await client.message.send({
         streamId: topics.stream,
         topicId: topics.inputTopic,
-        messages: [{ payload: JSON.stringify(message) }]
+        messages: [{ payload: JSON.stringify(signed) }]
       });
       console.log(
         `[iggy] injected id=${message.id} to ${topics.inputTopic} (${message.text.length} chars)`
@@ -104,7 +113,15 @@ export function createIggyMessenger(
               replyTo:
                 typeof parsed.replyTo === "string"
                   ? parsed.replyTo
-                  : undefined
+                  : undefined,
+              certificate:
+                typeof parsed.certificate === "string"
+                  ? parsed.certificate
+                  : undefined,
+              signature:
+                typeof parsed.signature === "string"
+                  ? parsed.signature
+                  : undefined,
             });
           }
         }

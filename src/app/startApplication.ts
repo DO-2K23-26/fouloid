@@ -1,11 +1,11 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
 import { createLangChainAgentRuntime } from "../agent/runtime.js";
+import { verifyIncomingMessage } from "../crypto/identity.js";
 import { startHealthServer } from "../health/server.js";
 import { createIggyConnection } from "../iggy/connection.js";
 import { createIggyMessenger } from "../iggy/messenger.js";
 import type { AgentAppConfig } from "../types/agent.js";
-import { createAgent } from "langchain";
 
 export async function startApplication(
   config: AgentAppConfig
@@ -15,12 +15,18 @@ export async function startApplication(
   );
   const startedAt = Date.now();
 
+  await startHealthServer(config.healthPort, {
+    agentName: config.agentName,
+    startedAt
+  });
+
   const { client, clientConfig } = await createIggyConnection(config);
   const messenger = createIggyMessenger(
     client,
     clientConfig,
     config.topics,
-    config.agentName
+    config.agentName,
+    config.identity
   );
   function buildModel(cfg: typeof config.openAI) {
     return new ChatOpenAI({
@@ -78,16 +84,19 @@ export async function startApplication(
       return;
     }
 
+    if (config.identity) {
+      const result = verifyIncomingMessage(config.identity.platformPublicKey, message);
+      if (!result.valid) {
+        console.warn(`[security] rejected message id=${message.id} from ${message.sender}: ${result.reason}`);
+        return;
+      }
+    }
+
     console.log(
       `[app] received id=${message.id} from ${message.sender}: ${message.text}`
     );
 
     await runtime.handleMessage(message);
-  });
-
-  await startHealthServer(config.healthPort, {
-    agentName: config.agentName,
-    startedAt
   });
 
   console.log(
