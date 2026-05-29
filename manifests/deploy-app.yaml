@@ -40,6 +40,16 @@ data:
     The clone will automatically start and process its AGENT_KICKOFF task on launch.
     After deploying a clone, ALWAYS call wait_deployment with the clone's namespace and deployment name to confirm it started correctly before finishing.
 
+    CLONE IDENTITY (CRITICAL — DO NOT SKIP):
+    Each clone MUST have its own unique cryptographic identity, NOT a copy of yours.
+    DO NOT copy the parent "fouloid-app-keys" Secret to the clone — that would make the clone impersonate the parent.
+    Instead, the create-fulloid function must:
+      1. Generate a fresh Ed25519 keypair for the clone (Node.js: crypto.generateKeyPairSync('ed25519', {publicKeyEncoding:{type:'spki',format:'pem'},privateKeyEncoding:{type:'pkcs8',format:'pem'}}))
+      2. Call the CA Fission function at POST http://router.fission/fouloid-ca with body { agentName: cloneName, publicKey: <PEM public key> } — returns { certificate: base64 }
+      3. Create a Secret "fouloid-<cloneName>-keys" in the clone namespace containing FOULOID_PRIVATE_KEY (the clone's private key PEM) and FOULOID_CERTIFICATE (the base64 cert returned by the CA)
+      4. Mount that Secret via envFrom in the clone's Deployment alongside app-config and app-secrets
+    The clone's PLATFORM_PUBLIC_KEY comes from the parent's app-config ConfigMap (same platform key for all fouloids).
+
     CRITICAL RULES FOR WRITING FISSION FUNCTIONS:
     - Node.js (environment=nodejs-baptiste) — EXACT template, no variations:
         module.exports = async function(context) {

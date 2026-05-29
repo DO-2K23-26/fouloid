@@ -1,6 +1,10 @@
 import { sign, verify } from "node:crypto";
 import type { AgentMessage, AgentIdentityConfig, FouloidCertificate } from "../types/agent.js";
 
+function normalizePem(pem: string): string {
+  return pem.replace(/\\n/g, "\n");
+}
+
 function messagePayload(msg: AgentMessage): Buffer {
   return Buffer.from(`${msg.id}:${msg.sender}:${msg.text}:${msg.timestamp}`);
 }
@@ -31,7 +35,7 @@ export function signCertificate(
 }
 
 export function signMessage(identity: AgentIdentityConfig, msg: AgentMessage): AgentMessage {
-  const signature = sign(null, messagePayload(msg), identity.privateKey).toString("base64");
+  const signature = sign(null, messagePayload(msg), normalizePem(identity.privateKey)).toString("base64");
   return { ...msg, certificate: identity.certificate, signature };
 }
 
@@ -61,7 +65,7 @@ export function verifyIncomingMessage(
   const certOk = verify(
     null,
     certPayload(partial),
-    platformPublicKeyPem,
+    normalizePem(platformPublicKeyPem),
     Buffer.from(cert.platformSignature, "base64")
   );
   if (!certOk) {
