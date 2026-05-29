@@ -10,6 +10,9 @@ export async function createFunction(
   environment?: string,
   namespace?: string
 ): Promise<string> {
+  // Normalize escaped newlines that models sometimes double-escape in JSON tool calls
+  code = code.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+
   const body: Record<string, string> = { name, code };
   if (method) body.method = method;
   if (route) body.route = route;
@@ -40,8 +43,34 @@ export async function createFunction(
   return `Function "${name}" deployed at ${actualMethod} ${actualRoute}. Invoke it with route="${actualRoute}".`;
 }
 
+function validateCode(code: string, environment?: string): void {
+  const trimmed = code.trim();
+
+  if (trimmed.length < 80) {
+    throw new Error(
+      `Code is too short (${trimmed.length} chars). Write the complete function implementation — do not submit stubs or truncated code.`
+    );
+  }
+
+  const open = (trimmed.match(/{/g) ?? []).length;
+  const close = (trimmed.match(/}/g) ?? []).length;
+  if (open !== close) {
+    throw new Error(
+      `Code has unbalanced braces: ${open} '{' vs ${close} '}'. The function body appears truncated. Write the full implementation before submitting.`
+    );
+  }
+
+  const env = (environment ?? "nodejs-baptiste").toLowerCase();
+  if (env.includes("nodejs") && !trimmed.includes("module.exports")) {
+    throw new Error(
+      `Node.js function must start with: module.exports = async function(context) { ... }. Provide the complete implementation.`
+    );
+  }
+}
+
 export const createFunctionTool = tool(
   async ({ name, code, method, route, environment, namespace }) => {
+    validateCode(code, environment);
     return await createFunction(name, code, method, route, environment, namespace);
   },
   {

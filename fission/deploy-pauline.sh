@@ -25,6 +25,18 @@ esac
 
 [ -z "$ROUTE" ] && ROUTE="/$NAME"
 
+# Validate code is not truncated
+CODE_LEN=${#CODE}
+if [ "$CODE_LEN" -lt 80 ]; then
+  echo "{\"error\":\"Code too short (${CODE_LEN} chars). Write the complete function body — do not submit stubs or truncated code.\"}"; exit 0
+fi
+
+OPEN_BRACES=$(printf '%s' "$CODE" | tr -cd '{' | wc -c | tr -d ' ')
+CLOSE_BRACES=$(printf '%s' "$CODE" | tr -cd '}' | wc -c | tr -d ' ')
+if [ "$OPEN_BRACES" != "$CLOSE_BRACES" ]; then
+  echo "{\"error\":\"Unbalanced braces: ${OPEN_BRACES} opening '{' vs ${CLOSE_BRACES} closing '}'. Function body appears truncated — provide the full implementation.\"}"; exit 0
+fi
+
 CODE_PATH="/tmp/${NAME}-$(date +%s%N).js"
 echo "$BODY" | jq -r '.code' > "$CODE_PATH"
 

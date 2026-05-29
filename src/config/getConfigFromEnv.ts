@@ -32,9 +32,9 @@ export function getConfigFromEnv(): AgentAppConfig {
   const reasoningModel = process.env.REASONING_MODEL;
   const reasoningBaseURL = process.env.REASONING_BASE_URL;
 
-  const privateKey = process.env.FOULOID_PRIVATE_KEY;
+  const privateKey = process.env.FOULOID_PRIVATE_KEY?.replace(/\\n/g, '\n');
   const certificate = process.env.FOULOID_CERTIFICATE;
-  const platformPublicKey = process.env.PLATFORM_PUBLIC_KEY;
+  const platformPublicKey = process.env.PLATFORM_PUBLIC_KEY?.replace(/\\n/g, '\n');
 
   const hasAnyIdentityVar = privateKey || certificate || platformPublicKey;
   const hasAllIdentityVars = privateKey && certificate && platformPublicKey;
