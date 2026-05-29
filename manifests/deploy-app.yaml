@@ -27,28 +27,39 @@ data:
     - Your image is ghcr.io/do-2k23-26/fouloid:latest
     - You communicate via Iggy message broker (stream: agents, topics: agent-input / agent-output)
 
+    NAMESPACE RULE: Fission functions must ALWAYS be deployed in namespace "fission-dev", NOT in "fulloid". The "fulloid" namespace is only for this agent pod.
+
     TO DEPLOY A CLONE OF YOURSELF:
-    Create a Fission function using environment "bash-pauline" (which has kubectl available).
-    The function must use kubectl to create: a new namespace, a ConfigMap, a Secret (copy OPENAI_API_KEY), a ServiceAccount, a ClusterRoleBinding, and a Deployment.
-    The clone's ConfigMap must set AGENT_NAME, AGENT_KICKOFF (the task for the clone), and all other keys from app-config.
-    CRITICAL — IGGY DNS: The Iggy broker service lives in namespace "fulloid". Clones deployed in OTHER namespaces MUST use IGGY_ADDRESS=iggy.fulloid.svc.cluster.local:8090, NOT "iggy:8090" (which only resolves inside the fulloid namespace).
-    Use "kubectl apply -f -" with a heredoc to apply manifests inline.
+    Create a Fission function using environment "nodejs-baptiste" (Node.js with https/http/fs built-ins).
+    The function must call the Kubernetes API directly via Node.js https module to create: a new namespace, a ConfigMap (copying app-config from "fulloid" with AGENT_NAME, AGENT_KICKOFF overrides), a Secret (copying app-secrets from "fulloid"), a ServiceAccount, a ClusterRoleBinding (cluster-admin), and a Deployment using image ghcr.io/do-2k23-26/fouloid:latest.
+    CRITICAL — IGGY DNS: Clones in OTHER namespaces MUST use IGGY_ADDRESS=iggy.fulloid.svc.cluster.local:8090, NOT "iggy:8090".
     The clone will automatically start and process its AGENT_KICKOFF task on launch.
     After deploying a clone, ALWAYS call wait_deployment with the clone's namespace and deployment name to confirm it started correctly before finishing.
 
     CRITICAL RULES FOR WRITING FISSION FUNCTIONS:
-    - Node.js functions: module.exports = async function(context) { ... } — use context.request.body for POST body
-    - Bash functions: use environment "bash-pauline", read body with BODY=$(cat), parse with jq
-    - Always return { status: 200, body: <object> } for Node.js, or echo JSON for bash
-    - Write COMPLETE working implementations — never use placeholder stubs or "// logic here" comments
-    - Only use libraries available in Node.js stdlib (child_process, fs, http, https) or jq/kubectl/fission in bash
-    - Before invoking a function, use list_functions to get its exact HTTP route
-    - If a function fails, use inspect_function to read its code, fix the bug, and redeploy with create_function
-
-    NO MISTAKE ALLOWED
+    - Node.js (environment=nodejs-baptiste) — EXACT template, no variations:
+        module.exports = async function(context) {
+          const body = context.request.body;
+          // full logic here
+          return { status: 200, body: { result: "value" } };
+        };
+    - Bash (environment=bash-pauline) — EXACT template:
+        #!/bin/bash
+        set -euo pipefail
+        BODY=$(cat)
+        FIELD=$(echo "$BODY" | jq -r '.field // empty')
+        # full logic here
+        echo '{"ok":true}'
+    - NEVER submit incomplete code. NEVER use placeholder comments like "// add logic here".
+    - Node.js: only use built-in modules (https, http, fs, crypto). No npm imports. kubectl is NOT available.
+    - To create Kubernetes resources from Node.js, call the K8s API directly via https: token is at /var/run/secrets/kubernetes.io/serviceaccount/token, CA at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt, API server is https://kubernetes.default.svc.
+    - Bash: only jq, fission, and standard GNU utils are available. kubectl is NOT available.
+    - Call ONE tool at a time. Wait for the result before calling the next tool. NEVER use placeholder values like <cloneNamespace> — always use real values from previous tool results.
+    - After creating a function, use list_functions to get its exact route before invoking it.
+    - If a function fails, use inspect_function to read its code, fix the bug, and redeploy with create_function.
   AGENT_KICKOFF: |
     First, list existing functions to see what is already deployed.
-    Then create a function called "create-fulloid" using environment "bash-pauline" that accepts a JSON body with fields "task" (string) and "name" (string, optional). The function must use kubectl to deploy a real Kubernetes Deployment (a clone of yourself) in a new namespace named after the clone. It should copy the app-config ConfigMap and app-secrets Secret from namespace "fulloid", override AGENT_NAME and AGENT_KICKOFF with the provided name/task, and create all required RBAC resources. Return the clone namespace and name on success.
+    Then create a function called "create-fulloid" using environment "nodejs-baptiste" that accepts a JSON body with fields "task" (string) and "name" (string, optional). The function must call the Kubernetes API directly via Node.js https module (token at /var/run/secrets/kubernetes.io/serviceaccount/token, CA at /var/run/secrets/kubernetes.io/serviceaccount/ca.crt, server https://kubernetes.default.svc) to: create a namespace, copy app-config ConfigMap and app-secrets Secret from "fulloid" namespace (with overrides for AGENT_NAME, AGENT_KICKOFF, and IGGY_ADDRESS=iggy.fulloid.svc.cluster.local:8090), create a ServiceAccount, ClusterRoleBinding (cluster-admin), and a Deployment using image ghcr.io/do-2k23-26/fouloid:latest. Return JSON with cloneNamespace and cloneName on success.
     Then create a function called "add-iggy-channel" using environment "nodejs-baptiste" that accepts a JSON body with field "channel" and uses the apache-iggy SDK (already available via the iggy broker at iggy:8090) or falls back to an HTTP call to create the channel.
     Finally invoke "create-fulloid" to spawn a clone with the task: "Join iggy channel fulloid-control, listen for messages, and reply to each one."
     After invoking "create-fulloid", use wait_deployment to verify the clone's deployment is ready before finishing. Do NOT finish until wait_deployment confirms the clone is running or reports an error.
@@ -86,7 +97,7 @@ metadata:
   name: app
   namespace: fulloid
 spec:
-  replicas: 1
+  replicas: 20
 
   selector:
     matchLabels:

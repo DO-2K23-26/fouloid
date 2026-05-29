@@ -1,5 +1,5 @@
 import type { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { tool } from "langchain";
 import z from "zod";
 import type { AgentMessage, IggyMessenger } from "../types/agent.js";
@@ -90,62 +90,86 @@ export function createLangChainAgentRuntime({
       ];
 
       let shouldContinue = true;
+      let iteration = 0;
+      const MAX_ITERATIONS = 30;
       let activeModel = reasoningWithTools;
-      let iterations = 0;
-      const MAX_ITERATIONS = 20;
+      let activeModelLabel = "reasoning";
 
       while (shouldContinue) {
-        if (++iterations > MAX_ITERATIONS) {
-          console.error(`[agent] exceeded ${MAX_ITERATIONS} iterations for id=${message.id}, aborting`);
+        iteration++;
+        if (iteration > MAX_ITERATIONS) {
+          console.error(`[agent] max iterations (${MAX_ITERATIONS}) reached — aborting`);
+          await messenger.send({ id: createMessageId(), sender: agentName, text: `Aborted after ${MAX_ITERATIONS} iterations without completion.`, timestamp: Date.now(), replyTo: message.id });
           break;
         }
+
+        console.log(`[agent] → model=${activeModelLabel} turn=${iteration}/${MAX_ITERATIONS} history=${messages.length}`);
         const response = await activeModel.invoke(messages);
+
+        const responseText = normalizeTextContent(response.content);
+        if (responseText) {
+          console.log(`[agent] ← text: ${responseText.substring(0, 200)}`);
+        }
+        if (response.tool_calls?.length) {
+          for (const tc of response.tool_calls) {
+            const argsStr = JSON.stringify(tc.args ?? {});
+            console.log(`[agent] ← tool_call: ${tc.name}(${argsStr.substring(0, 300)})`);
+          }
+        }
 
         // No tool calls — treat content as final response (fallback for non-required models)
         if (!response.tool_calls || response.tool_calls.length === 0) {
-          const text = normalizeTextContent(response.content);
           const elapsedMs = Date.now() - startedAt;
-          console.log(`[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`);
-          await messenger.send({ id: createMessageId(), sender: agentName, text, timestamp: Date.now(), replyTo: message.id });
+          console.log(`[agent] model replied in ${elapsedMs}ms (${responseText.length} chars out)`);
+          await messenger.send({ id: createMessageId(), sender: agentName, text: responseText, timestamp: Date.now(), replyTo: message.id });
           shouldContinue = false;
           break;
         }
 
-        messages.push(response);
+        // Only execute the FIRST tool call — if the model batched multiple, push "skipped"
+        // ToolMessages for the rest so the history stays valid (every tool_call_id must have
+        // a ToolMessage). This forces the model to re-plan step-by-step with real results.
+        const [firstCall, ...skippedCalls] = response.tool_calls;
+        if (skippedCalls.length > 0) {
+          console.warn(`[agent] model returned ${response.tool_calls.length} tool calls — executing only "${firstCall.name}", skipping ${skippedCalls.map(c => c.name).join(", ")}`);
+        }
+
+        // Push a new AIMessage containing ONLY the first tool call (valid history)
+        messages.push(new AIMessage({
+          content: normalizeTextContent(response.content),
+          tool_calls: [firstCall],
+        }));
 
         // Pick model for next turn based on the tool being called
-        const nextToolName = response.tool_calls?.[0]?.name ?? "";
-        activeModel = CODING_TOOLS.has(nextToolName) ? codingWithTools : reasoningWithTools;
+        const nextToolName = firstCall?.name ?? "";
+        const usesCoding = CODING_TOOLS.has(nextToolName);
+        activeModel = usesCoding ? codingWithTools : reasoningWithTools;
+        activeModelLabel = usesCoding ? "coding" : "reasoning";
 
-        for (const toolCall of response.tool_calls) {
-          console.log(`[agent] executing tool: ${toolCall.name} (model=${CODING_TOOLS.has(toolCall.name) ? "coding" : "reasoning"})`);
+        console.log(`[agent] executing tool: ${firstCall.name}`);
 
-          // finish tool — send the message and stop
-          if (toolCall.name === "finish") {
-            const text = String((toolCall.args as any)?.message ?? "Done.");
-            const elapsedMs = Date.now() - startedAt;
-            console.log(`[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`);
-            await messenger.send({ id: createMessageId(), sender: agentName, text, timestamp: Date.now(), replyTo: message.id });
-            messages.push(new ToolMessage({ content: text, tool_call_id: toolCall.id ?? "" }));
-            shouldContinue = false;
-            break;
-          }
-
-          const t = tools.find((t) => t.name === toolCall.name) as any;
+        if (firstCall.name === "finish") {
+          const text = String((firstCall.args as any)?.message ?? "Done.");
+          const elapsedMs = Date.now() - startedAt;
+          console.log(`[agent] model replied in ${elapsedMs}ms (${text.length} chars out)`);
+          await messenger.send({ id: createMessageId(), sender: agentName, text, timestamp: Date.now(), replyTo: message.id });
+          messages.push(new ToolMessage({ content: text, tool_call_id: firstCall.id ?? "" }));
+          shouldContinue = false;
+        } else {
+          const t = tools.find((t) => t.name === firstCall.name) as any;
           if (!t) {
-            console.error(`[agent] tool not found: ${toolCall.name}`);
-            messages.push(new ToolMessage({ content: `Error: tool "${toolCall.name}" not found`, tool_call_id: toolCall.id ?? "" }));
-            continue;
-          }
-
-          try {
-            const toolResult = await t.invoke(toolCall.args);
-            console.log(`[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 500)}`);
-            messages.push(new ToolMessage({ content: String(toolResult), tool_call_id: toolCall.id ?? "" }));
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            console.error(`[agent] tool ${toolCall.name} failed: ${errorMsg}`);
-            messages.push(new ToolMessage({ content: `Error: ${errorMsg}`, tool_call_id: toolCall.id ?? "" }));
+            console.error(`[agent] tool not found: ${firstCall.name}`);
+            messages.push(new ToolMessage({ content: `Error: tool "${firstCall.name}" not found`, tool_call_id: firstCall.id ?? "" }));
+          } else {
+            try {
+              const toolResult = await t.invoke(firstCall.args);
+              console.log(`[agent] tool ${firstCall.name} returned: ${String(toolResult).substring(0, 500)}`);
+              messages.push(new ToolMessage({ content: String(toolResult), tool_call_id: firstCall.id ?? "" }));
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              console.error(`[agent] tool ${firstCall.name} failed: ${errorMsg}`);
+              messages.push(new ToolMessage({ content: `Error: ${errorMsg}`, tool_call_id: firstCall.id ?? "" }));
+            }
           }
         }
       }
