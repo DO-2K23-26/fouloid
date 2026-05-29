@@ -10,6 +10,16 @@ export async function createFunction(
   environment?: string,
   namespace?: string
 ): Promise<string> {
+  // Protected functions cannot be recreated — they are managed infrastructure
+  const PROTECTED = ["create-fulloid", "deploy-pauline"];
+  if (PROTECTED.includes(name)) {
+    throw new Error(
+      `"${name}" is a protected system function and cannot be recreated. ` +
+      `To spawn a child agent, call invoke_function with functionName="create-fulloid", ` +
+      `route="/create-fulloid", and body={"name":"gen[N]-[word]","task":"[kickoff text]","parent":"[your name]"}.`
+    );
+  }
+
   // Normalize escaped newlines that models sometimes double-escape in JSON tool calls
   code = code.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
 

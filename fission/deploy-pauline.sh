@@ -25,6 +25,12 @@ esac
 
 [ -z "$ROUTE" ] && ROUTE="/$NAME"
 
+# Protected system functions cannot be overwritten
+case "$NAME" in
+  create-fulloid|deploy-pauline)
+    echo "{\"error\":\"\\\"${NAME}\\\" is a protected system function and cannot be recreated. To spawn a child agent, use the spawn_child tool.\"}"; exit 0 ;;
+esac
+
 # Validate code is not truncated
 CODE_LEN=${#CODE}
 if [ "$CODE_LEN" -lt 80 ]; then

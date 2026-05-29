@@ -9,6 +9,7 @@ import { createFunctionTool } from "./tools/create-function.js";
 import { listFunctionsTool } from "./tools/list-function.js";
 import { inspectFunctionTool } from "./tools/inspect-function.js";
 import { waitDeploymentTool } from "./tools/wait-deployment.js";
+import { spawnChildTool } from "./tools/spawn-child.js";
 
 const DEFAULT_SYSTEM_PROMPT = [
   "You are a queue-driven LangChain agent.",
@@ -25,6 +26,31 @@ const finishTool = tool(
     description: "Call this when you have completed all tasks. Provide your final summary as the message.",
     schema: z.object({
       message: z.string().describe("Final response to send"),
+    }),
+  },
+);
+
+// Forces the model to write out its reasoning before acting.
+// The thought is echoed back so the model can reference it in the next tool call.
+const thinkTool = tool(
+  async ({ thought }) => {
+    log.info({ action: "think", thought });
+    return `Thought recorded: ${thought}`;
+  },
+  {
+    name: "think",
+    description:
+      "Use this to write out your reasoning before taking an action. " +
+      "Call this BEFORE invoke_function to explicitly state: (1) the exact child name you chose (e.g. gen1-ember), " +
+      "(2) the complete kickoff text for the child. " +
+      "The output is echoed back so you can copy the values directly into the next tool call.",
+    schema: z.object({
+      thought: z.string().describe(
+        "Your full reasoning. Must include:\n" +
+        "- CHILD NAME: gen[N]-[word] (e.g. gen1-ember)\n" +
+        "- KICKOFF TEXT: the complete philosophical message for the child (at least 3 sentences)\n" +
+        "These exact values will be used in the next invoke_function call."
+      ),
     }),
   },
 );
@@ -48,7 +74,10 @@ function normalizeTextContent(content: unknown) {
   return String(content ?? "");
 }
 
-const CODING_TOOLS = new Set(["create_function", "invoke_function", "inspect_function", "list_functions"]);
+// Only tools that require writing code use the coding model.
+// invoke_function, list_functions, wait_deployment stay on the reasoning model
+// so that errors/results are handled by the model best suited for planning.
+const CODING_TOOLS = new Set(["create_function", "inspect_function"]);
 
 export function createLangChainAgentRuntime({
   agentName,
@@ -69,6 +98,8 @@ export function createLangChainAgentRuntime({
       const startedAt = Date.now();
 
       const tools = [
+        thinkTool,
+        spawnChildTool,
         invokeFunctionTool,
         createFunctionTool,
         listFunctionsTool,

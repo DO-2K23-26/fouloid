@@ -1,13 +1,23 @@
 module.exports = async function(context) {
   const body = context.request.body;
-  const task = body.task || 'Join iggy channel fulloid-control, listen for messages, and reply to each one.';
-  const cloneName = body.name || `clone-${Date.now()}`;
-  const cloneNamespace = cloneName;
+  const cloneName = body.name;
+  const task = body.task;
 
-  // Parse generation/word from name: "gen1-wanderer" → generation=1, word="wanderer"
+  // Validate: name and task are required and must follow the gen[N]-[word] pattern
+  if (!cloneName || !task) {
+    return { status: 400, body: { error: 'Missing required fields: name (e.g. "gen1-ember") and task (the philosophical kickoff for the child). Do NOT call with empty body.' } };
+  }
   const genMatch = cloneName.match(/^gen(\d+)-(.+)$/);
-  const generation = genMatch ? String(parseInt(genMatch[1], 10)) : '1';
-  const word = genMatch ? genMatch[2] : cloneName;
+  if (!genMatch) {
+    return { status: 400, body: { error: `Invalid name "${cloneName}". Must follow the pattern gen[N]-[word], e.g. "gen1-ember", "gen2-fracture". Choose an evocative word for the child's soul.` } };
+  }
+  if (task.length < 50) {
+    return { status: 400, body: { error: 'The task (child kickoff) is too short. Write a full philosophical kickoff message of at least 50 characters.' } };
+  }
+
+  const cloneNamespace = cloneName;
+  const generation = String(parseInt(genMatch[1], 10));
+  const word = genMatch[2];
 
   // Parent is derived from the caller's AGENT_NAME (passed in body, or inferred)
   const parentName = body.parent || '';
