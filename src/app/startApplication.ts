@@ -130,20 +130,22 @@ export async function startApplication(
     // Agents at generation >= MAX_SPAWN_GENERATION are terminal leaves:
     // they create their artifact but spawn no children.
     // Below that threshold, each agent branches into TWO children (amplifier + mutant).
-    const MAX_SPAWN_GENERATION = 5;
+    // Agents at generation >= MAX_SPAWN_GENERATION are terminal leaves and may not spawn children.
+    // Below that threshold, agents choose freely how many children to spawn (0–10).
+    const MAX_SPAWN_GENERATION = 4;
     const isTerminal = config.generation >= MAX_SPAWN_GENERATION;
-    const branchTag = isTerminal
-      ? `[TERMINAL] You are a LEAF — generation ${config.generation} is the end of your branch. Create your artifact. Spawn NO children. Only finish.`
-      : `[BRANCHING] Spawn exactly TWO children, both generation ${childGen}. Child A = AMPLIFIER (word deepens yours). Child B = MUTANT (word subverts or opposes yours). Each name: "gen${childGen}-[word]".`;
+    const spawnTag = isTerminal
+      ? `[TERMINAL] You are a LEAF — generation ${config.generation}. Create your functions. Spawn NO children.`
+      : `[FREE] You choose how many children to spawn (0 to 10, all generation ${childGen}, names "gen${childGen}-[word]"). Spawn as many as your mission requires — no more, no less. Consider 2–5 for most missions.`;
 
     const kickoffWithContext = [
       `[YOUR IDENTITY] You are "${config.agentName}", generation ${config.generation}, word "${config.word || "origin"}", parent "${config.parent || "none"}".`,
-      branchTag,
-      `Ignore any generation numbers in the kickoff text below — use ${childGen} for your children.`,
+      spawnTag,
+      `Any generation numbers in the kickoff text below are guidance only — your children are always generation ${childGen}.`,
       ``,
       config.kickoff,
     ].join("\n");
-    console.log(`[app] kickoff: processing id=${id} (${isTerminal ? "TERMINAL" : "BRANCHING"} gen=${config.generation})`);
+    console.log(`[app] kickoff: processing id=${id} (${isTerminal ? "TERMINAL" : "FREE"} gen=${config.generation})`);
     await runtime.handleMessage({
       id,
       sender: "system",
