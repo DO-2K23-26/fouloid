@@ -15,6 +15,7 @@ export interface AgentIdentityConfig {
 export interface AgentMessage {
   id: string;
   sender: string;
+  recipient?: string;   // agent name, "@all" for broadcast, or undefined (everyone)
   text: string;
   timestamp: number;
   replyTo?: string;

@@ -113,6 +113,10 @@ export function createIggyMessenger(
                   ? parsed.id
                   : createMessageId(),
               sender: parsed.sender,
+              recipient:
+                typeof parsed.recipient === "string"
+                  ? parsed.recipient
+                  : undefined,
               text: parsed.text,
               timestamp:
                 typeof parsed.timestamp === "number"

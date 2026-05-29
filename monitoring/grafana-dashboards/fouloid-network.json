@@ -1,0 +1,229 @@
+{
+  "title": "Fouloid Live Network",
+  "uid": "fouloid-network",
+  "tags": ["fouloid"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "agent",
+        "type": "query",
+        "label": "Agent",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({namespace=~\"gen.*|fulloid\"}, agent)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": { "text": "All", "value": ["$__all"] }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Messages entre fouloids (flux live)",
+      "description": "Communications en temps réel — phase LIFE uniquement",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"message_sent\" | agent=~\"$agent\" | line_format \"[{{.agent}}] → {{.recipient}}: {{.text}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Volume de messages (timeline)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 10, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (agent) (count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"message_sent\" | agent=~\"$agent\" [1m]))",
+          "legendFormat": "{{agent}}"
+        }
+      ],
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 3,
+      "title": "Agents actifs en LIFE mode",
+      "description": "Ont reçu au moins un message d'un pair (non-system) dans les 10 dernières minutes",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(sum by (agent) (count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"iggy_receive\" | from!=\"system\" [10m])) > 0)"
+        }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "value": 0, "color": "blue" }, { "value": 1, "color": "green" }] },
+          "color": { "mode": "thresholds" }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Messages envoyés (total 1h)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"message_sent\" [1h]))"
+        }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "steps": [{ "value": 0, "color": "purple" }] },
+          "color": { "mode": "thresholds" }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Réceptions BIRTH vs LIFE",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (phase) (count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"iggy_receive\" | agent=~\"$agent\" [1h]))",
+          "legendFormat": "{{phase}}"
+        }
+      ],
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "id": 6,
+      "title": "Actions par type (répartition)",
+      "type": "piechart",
+      "gridPos": { "x": 0, "y": 18, "w": 10, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action) (count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=~\"tool_call|spawn_child|message_sent|create_function|think|iggy_receive\" | agent=~\"$agent\" [1h]))",
+          "legendFormat": "{{action}}"
+        }
+      ],
+      "options": { "legendDisplayMode": "table", "placement": "right" }
+    },
+    {
+      "id": 7,
+      "title": "Actions par agent (heatmap d'activité)",
+      "type": "barchart",
+      "gridPos": { "x": 10, "y": 18, "w": 14, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (agent) (count_over_time({namespace=~\"gen.*|fulloid\"} | json | action=~\"tool_call|spawn_child|message_sent|create_function\" | agent=~\"$agent\" [1h]))",
+          "legendFormat": "{{agent}}"
+        }
+      ],
+      "options": { "xTickLabelRotation": -45, "tooltip": { "mode": "single" } }
+    },
+    {
+      "id": 8,
+      "title": "Pensées (think) — raisonnement avant action",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 28, "w": 12, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"think\" | agent=~\"$agent\" | line_format \"[{{.agent}}] {{.thought}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Registre tribal — contenu actuel",
+      "type": "logs",
+      "gridPos": { "x": 12, "y": 28, "w": 12, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"invoke_function\" | agent=~\"$agent\" | line_format \"[{{.agent}}] registry → {{.result}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Top agents les plus actifs",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 38, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(20, sum by (agent) (count_over_time({namespace=~\"gen.*|fulloid\"} | json [1h])))",
+          "legendFormat": "{{agent}}"
+        }
+      ],
+      "transformations": [
+        { "id": "sortBy", "options": { "fields": [{ "displayName": "Value", "desc": true }] } }
+      ],
+      "options": { "showHeader": true },
+      "fieldConfig": { "defaults": { "custom": { "align": "left" } } }
+    },
+    {
+      "id": 11,
+      "title": "Erreurs en LIFE phase",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 46, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_error\" | agent=~\"$agent\" | line_format \"[{{.agent}}] ERROR {{.tool}}: {{.error}}\""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

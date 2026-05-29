@@ -92,6 +92,34 @@ export function createLangChainAgentRuntime({
   messenger: IggyMessenger;
   systemPrompt?: string;
 }) {
+  // Tool to send a targeted or broadcast message to other fouloid peers via Iggy.
+  const sendMessageTool = tool(
+    async ({ recipient, text }) => {
+      const id = createMessageId();
+      await messenger.inject({
+        id,
+        sender: agentName,
+        recipient,
+        text,
+        timestamp: Date.now(),
+      });
+      log.info({ action: "message_sent", recipient, text: text.substring(0, 400) });
+      return `Message sent to ${recipient}.`;
+    },
+    {
+      name: "send_message",
+      description:
+        "Send a message to a specific fouloid peer or to all. " +
+        "Use recipient='@all' for a broadcast everyone will read. " +
+        "Use the exact agent name (e.g. 'gen2-forecaster') to address a specific peer. " +
+        "Use this to announce your BIRTH, to ask siblings for help, or to reply to a request.",
+      schema: z.object({
+        recipient: z.string().describe("Target agent name (e.g. 'gen3-analyst') or '@all' for broadcast"),
+        text: z.string().describe("The message content — be specific about who you are and what you offer or ask"),
+      }),
+    }
+  );
+
   return {
     async handleMessage(message: AgentMessage) {
       console.log(`[agent] invoking model for id=${message.id} (${message.text.length} chars in)`);
@@ -99,6 +127,7 @@ export function createLangChainAgentRuntime({
 
       const tools = [
         thinkTool,
+        sendMessageTool,
         spawnChildTool,
         invokeFunctionTool,
         createFunctionTool,
