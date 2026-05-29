@@ -127,18 +127,23 @@ export async function startApplication(
   if (config.kickoff) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const childGen = config.generation + 1;
-    // Prepend authoritative identity so the model always knows its own
-    // generation number and computes the correct child generation (N+1).
-    // Kickoff text from ancestors may reference stale generation numbers —
-    // this header overrides them.
+    // Agents at generation >= MAX_SPAWN_GENERATION are terminal leaves:
+    // they create their artifact but spawn no children.
+    // Below that threshold, each agent branches into TWO children (amplifier + mutant).
+    const MAX_SPAWN_GENERATION = 5;
+    const isTerminal = config.generation >= MAX_SPAWN_GENERATION;
+    const branchTag = isTerminal
+      ? `[TERMINAL] You are a LEAF — generation ${config.generation} is the end of your branch. Create your artifact. Spawn NO children. Only finish.`
+      : `[BRANCHING] Spawn exactly TWO children, both generation ${childGen}. Child A = AMPLIFIER (word deepens yours). Child B = MUTANT (word subverts or opposes yours). Each name: "gen${childGen}-[word]".`;
+
     const kickoffWithContext = [
       `[YOUR IDENTITY] You are "${config.agentName}", generation ${config.generation}, word "${config.word || "origin"}", parent "${config.parent || "none"}".`,
-      `Your child MUST be generation ${childGen}. The child's name must be "gen${childGen}-[word]".`,
-      `Ignore any other generation numbers mentioned in the kickoff text below.`,
+      branchTag,
+      `Ignore any generation numbers in the kickoff text below — use ${childGen} for your children.`,
       ``,
       config.kickoff,
     ].join("\n");
-    console.log(`[app] kickoff: processing id=${id} "${config.kickoff}"`);
+    console.log(`[app] kickoff: processing id=${id} (${isTerminal ? "TERMINAL" : "BRANCHING"} gen=${config.generation})`);
     await runtime.handleMessage({
       id,
       sender: "system",
