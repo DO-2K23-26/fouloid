@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-fouloid-dashboards
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  fouloid-events.json: |
+    {
+      "title": "Fouloid Events",
+      "uid": "fouloid-events",
+      "tags": ["fouloid"],
+      "timezone": "browser",
+      "refresh": "5s",
+      "time": { "from": "now-1h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "agent",
+            "type": "query",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "query": "label_values(agent)",
+            "label": "Agent",
+            "multi": true,
+            "includeAll": true,
+            "current": { "text": "All", "value": "$__all" }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Live Event Stream",
+          "type": "logs",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "{namespace=~\"gen.*|fulloid\"} | json | agent=~\"$agent\"",
+              "legendFormat": "{{agent}} / {{action}}"
+            }
+          ],
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "showTime": true,
+            "wrapLogMessage": true
+          }
+        },
+        {
+          "id": 2,
+          "title": "LLM Calls — Latence par modèle (ms)",
+          "type": "timeseries",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "avg_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"llm_response\" | unwrap latency_ms [1m]) by (agent, model)",
+              "legendFormat": "{{agent}} / {{model}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ms", "custom": { "lineWidth": 2 } }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Tool Calls — Latence (ms)",
+          "type": "timeseries",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "avg_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | unwrap latency_ms [1m]) by (agent, tool)",
+              "legendFormat": "{{agent}} / {{tool}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ms" }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Fonctions deployées (code complet)",
+          "type": "logs",
+          "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"create_function\" | agent=~\"$agent\" | line_format \"[{{.agent}}] {{.ts}} — fn={{.args_name}} → {{.result}}\"",
+              "legendFormat": ""
+            }
+          ],
+          "options": {
+            "enableLogDetails": true,
+            "showTime": true,
+            "wrapLogMessage": true
+          }
+        },
+        {
+          "id": 5,
+          "title": "Communications inter-agents (iggy)",
+          "type": "logs",
+          "gridPos": { "x": 0, "y": 22, "w": 24, "h": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=~\"iggy_send|iggy_receive\" | agent=~\"$agent\"",
+              "legendFormat": ""
+            }
+          ],
+          "options": {
+            "enableLogDetails": true,
+            "showTime": true,
+            "wrapLogMessage": true
+          }
+        },
+        {
+          "id": 6,
+          "title": "Erreurs",
+          "type": "logs",
+          "gridPos": { "x": 0, "y": 30, "w": 24, "h": 6 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "expr": "{namespace=~\"gen.*|fulloid\"} | json | level=\"error\" | agent=~\"$agent\"",
+              "legendFormat": ""
+            }
+          ],
+          "options": {
+            "enableLogDetails": true,
+            "showTime": true
+          }
+        }
+      ]
+    }
+  fouloid-tree.json: |
+    {
+      "title": "Fouloid Genealogy Tree",
+      "uid": "fouloid-tree",
+      "tags": ["fouloid"],
+      "timezone": "browser",
+      "refresh": "10s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Arbre Généalogique des Fouloid",
+          "type": "nodeGraph",
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 20 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "nodes",
+              "expr": "kube_namespace_labels{label_fouloid_io_agent=\"true\"}",
+              "legendFormat": "__auto",
+              "instant": true
+            },
+            {
+              "refId": "live",
+              "expr": "kube_deployment_status_replicas_available{namespace=~\"gen.*|fulloid\"}",
+              "legendFormat": "__auto",
+              "instant": true
+            }
+          ],
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": {
+                "valueLabel": "namespace",
+                "mode": "rows"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "renameByName": {
+                  "label_fouloid_io_generation": "detail__Generation",
+                  "label_fouloid_io_word": "title",
+                  "label_fouloid_io_parent": "detail__Parent",
+                  "namespace": "id"
+                }
+              }
+            }
+          ],
+          "options": {
+            "nodes": {
+              "mainStatUnit": "short",
+              "secondaryStatUnit": "short"
+            }
+          }
+        },
+        {
+          "id": 2,
+          "title": "Agents actifs",
+          "type": "stat",
+          "gridPos": { "x": 0, "y": 20, "w": 6, "h": 4 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "count(kube_deployment_status_replicas_available{namespace=~\"gen.*|fulloid\"} > 0)",
+              "legendFormat": "Live"
+            }
+          ],
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "thresholds": {
+                "steps": [
+                  { "value": 0, "color": "red" },
+                  { "value": 1, "color": "green" }
+                ]
+              },
+              "color": { "mode": "thresholds" }
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Générations déployées",
+          "type": "stat",
+          "gridPos": { "x": 6, "y": 20, "w": 6, "h": 4 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "count(kube_namespace_labels{label_fouloid_io_agent=\"true\"})",
+              "legendFormat": "Total"
+            }
+          ],
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none"
+          }
+        },
+        {
+          "id": 4,
+          "title": "Liste des agents",
+          "type": "table",
+          "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "expr": "kube_namespace_labels{label_fouloid_io_agent=\"true\"}",
+              "instant": true,
+              "legendFormat": "__auto"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "labelsToFields",
+              "options": { "mode": "rows" }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "includeByName": {
+                  "namespace": true,
+                  "label_fouloid_io_generation": true,
+                  "label_fouloid_io_word": true,
+                  "label_fouloid_io_parent": true
+                },
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "label_fouloid_io_generation": "Génération",
+                  "label_fouloid_io_word": "Mot",
+                  "label_fouloid_io_parent": "Parent"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }

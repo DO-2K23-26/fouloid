@@ -4,6 +4,14 @@ module.exports = async function(context) {
   const cloneName = body.name || `clone-${Date.now()}`;
   const cloneNamespace = cloneName;
 
+  // Parse generation/word from name: "gen1-wanderer" → generation=1, word="wanderer"
+  const genMatch = cloneName.match(/^gen(\d+)-(.+)$/);
+  const generation = genMatch ? String(parseInt(genMatch[1], 10)) : '1';
+  const word = genMatch ? genMatch[2] : cloneName;
+
+  // Parent is derived from the caller's AGENT_NAME (passed in body, or inferred)
+  const parentName = body.parent || '';
+
   const fs = require('fs');
   const https = require('https');
 
@@ -39,12 +47,21 @@ module.exports = async function(context) {
   });
 
   try {
-    // 1. Create namespace
+    // 1. Create namespace with genealogy labels
     await k8s('/api/v1/namespaces', 'POST', {
-      apiVersion: 'v1', kind: 'Namespace', metadata: { name: cloneNamespace }
+      apiVersion: 'v1', kind: 'Namespace',
+      metadata: {
+        name: cloneNamespace,
+        labels: {
+          'fouloid.io/agent': 'true',
+          'fouloid.io/generation': generation,
+          'fouloid.io/word': word,
+          'fouloid.io/parent': parentName,
+        }
+      }
     });
 
-    // 2. Copy app-config with overrides
+    // 2. Copy app-config with overrides including genealogy metadata
     const origCfg = await k8s('/api/v1/namespaces/fulloid/configmaps/app-config', 'GET', null);
     await k8s(`/api/v1/namespaces/${cloneNamespace}/configmaps`, 'POST', {
       apiVersion: 'v1', kind: 'ConfigMap',
@@ -53,6 +70,9 @@ module.exports = async function(context) {
         ...origCfg.data,
         AGENT_NAME: cloneName,
         AGENT_KICKOFF: task,
+        AGENT_GENERATION: generation,
+        AGENT_WORD: word,
+        AGENT_PARENT: parentName,
         IGGY_ADDRESS: 'iggy.fulloid.svc.cluster.local:8090'
       }
     });
@@ -113,7 +133,7 @@ module.exports = async function(context) {
       }
     });
 
-    return { status: 200, body: { cloneNamespace, cloneName, deploymentName: 'app' } };
+    return { status: 200, body: { cloneNamespace, cloneName, deploymentName: 'app', generation, word, parent: parentName } };
   } catch (err) {
     return { status: 500, body: { error: err.message } };
   }

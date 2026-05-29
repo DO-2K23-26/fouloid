@@ -1,0 +1,128 @@
+{
+  "title": "Fouloid Events",
+  "uid": "fouloid-events",
+  "tags": ["fouloid"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "agent",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values(agent)",
+        "label": "Agent",
+        "multi": true,
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Live Event Stream",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | agent=~\"$agent\"",
+          "legendFormat": "{{agent}} / {{action}}"
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "LLM Calls — Latence par modèle (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "avg_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"llm_response\" | unwrap latency_ms [1m]) by (agent, model)",
+          "legendFormat": "{{agent}} / {{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "custom": { "lineWidth": 2 } }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Tool Calls — Latence (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "avg_over_time({namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | unwrap latency_ms [1m]) by (agent, tool)",
+          "legendFormat": "{{agent}} / {{tool}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Fonctions deployées (code complet)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"create_function\" | agent=~\"$agent\" | line_format \"[{{.agent}}] {{.ts}} — fn={{.args_name}} → {{.result}}\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "enableLogDetails": true,
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "id": 5,
+      "title": "Communications inter-agents (iggy)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=~\"iggy_send|iggy_receive\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "enableLogDetails": true,
+        "showTime": true,
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "id": 6,
+      "title": "Erreurs",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | level=\"error\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "enableLogDetails": true,
+        "showTime": true
+      }
+    }
+  ]
+}

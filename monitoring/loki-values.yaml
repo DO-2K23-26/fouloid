@@ -1,0 +1,53 @@
+loki:
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  auth_enabled: false
+  limits_config:
+    retention_period: 168h
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+deploymentMode: SingleBinary
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 10Gi
+
+# Disable components not needed for single-binary
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+gateway:
+  enabled: false
+
+minio:
+  enabled: false
+
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
+  serviceMonitor:
+    enabled: false

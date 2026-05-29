@@ -1,5 +1,6 @@
 import type { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { log } from "../logger.js";
 import { tool } from "langchain";
 import z from "zod";
 import type { AgentMessage, IggyMessenger } from "../types/agent.js";
@@ -102,7 +103,10 @@ export function createLangChainAgentRuntime({
         }
 
         console.log(`[agent] → model=${activeModelName} turn=${turn}/${MAX_TURNS} history=${messages.length}`);
+        const llmStart = Date.now();
+        log.info({ action: "llm_call", model: activeModelName, turn, history_len: messages.length });
         const response = await activeModel.invoke(messages);
+        log.info({ action: "llm_response", model: activeModelName, turn, latency_ms: Date.now() - llmStart, tool_calls_count: response.tool_calls?.length ?? 0, first_tool: response.tool_calls?.[0]?.name ?? null });
 
         const responseText = normalizeTextContent(response.content);
         if (responseText) {
@@ -152,12 +156,24 @@ export function createLangChainAgentRuntime({
 
           try {
             console.log(`[agent] executing tool: ${toolCall.name}`);
+            const toolStart = Date.now();
             const toolResult = await t.invoke(toolCall.args);
-            console.log(`[agent] tool ${toolCall.name} returned: ${String(toolResult).substring(0, 500)}`);
-            messages.push(new ToolMessage({ content: String(toolResult), tool_call_id: toolCall.id ?? "" }));
+            const toolLatency = Date.now() - toolStart;
+            const resultStr = String(toolResult);
+            console.log(`[agent] tool ${toolCall.name} returned: ${resultStr.substring(0, 500)}`);
+            log.info({
+              action: "tool_call",
+              turn,
+              tool: toolCall.name,
+              args: toolCall.args,
+              result: resultStr.substring(0, 2000),
+              latency_ms: toolLatency,
+            });
+            messages.push(new ToolMessage({ content: resultStr, tool_call_id: toolCall.id ?? "" }));
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             console.error(`[agent] tool ${toolCall.name} failed: ${errorMsg}`);
+            log.error({ action: "tool_error", turn, tool: toolCall.name, args: toolCall.args, error: errorMsg });
             messages.push(new ToolMessage({ content: `Error: ${errorMsg}`, tool_call_id: toolCall.id ?? "" }));
           }
         }

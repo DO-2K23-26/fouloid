@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-loki-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        uid: loki
+        url: http://loki.monitoring.svc.cluster.local:3100
+        access: proxy
+        isDefault: false
+        jsonData:
+          maxLines: 5000
+          derivedFields:
+            - name: agent
+              matcherRegex: '"agent":"([^"]+)"'
+              url: ''

@@ -36,6 +36,10 @@ export function getConfigFromEnv(): AgentAppConfig {
   const certificate = process.env.FOULOID_CERTIFICATE;
   const platformPublicKey = process.env.PLATFORM_PUBLIC_KEY?.replace(/\\n/g, '\n');
 
+  const agentGeneration = parseInt(process.env.AGENT_GENERATION ?? "0", 10);
+  const agentWord = process.env.AGENT_WORD ?? "";
+  const agentParent = process.env.AGENT_PARENT ?? "";
+
   const hasAnyIdentityVar = privateKey || certificate || platformPublicKey;
   const hasAllIdentityVars = privateKey && certificate && platformPublicKey;
   if (hasAnyIdentityVar && !hasAllIdentityVars) {
@@ -65,6 +69,9 @@ export function getConfigFromEnv(): AgentAppConfig {
     systemPrompt: process.env.AGENT_SYSTEM_PROMPT,
     healthPort,
     kickoff: process.env.AGENT_KICKOFF,
+    generation: agentGeneration,
+    word: agentWord,
+    parent: agentParent,
     identity: hasAllIdentityVars
       ? { privateKey: privateKey!, certificate: certificate!, platformPublicKey: platformPublicKey! }
       : undefined,

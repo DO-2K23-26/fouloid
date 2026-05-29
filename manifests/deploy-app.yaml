@@ -12,7 +12,10 @@ data:
   IGGY_STREAM: "agents"
   IGGY_INPUT_TOPIC: "agent-input"
   IGGY_OUTPUT_TOPIC: "agent-output"
-  AGENT_NAME: "langchain-agent"
+  AGENT_NAME: "gen0"
+  AGENT_GENERATION: "0"
+  AGENT_WORD: "origin"
+  AGENT_PARENT: ""
   HEALTH_PORT: "8080"
   FISSION_ENDPOINT: "http://router.fission"
   FISSION_FUNCTION_SA: "app"
@@ -120,7 +123,7 @@ metadata:
   name: app
   namespace: fulloid
 spec:
-  replicas: 20
+  replicas: 1
 
   selector:
     matchLabels:

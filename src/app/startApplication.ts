@@ -5,6 +5,7 @@ import { verifyIncomingMessage } from "../crypto/identity.js";
 import { startHealthServer } from "../health/server.js";
 import { createIggyConnection } from "../iggy/connection.js";
 import { createIggyMessenger } from "../iggy/messenger.js";
+import { log, setLogContext } from "../logger.js";
 import type { AgentAppConfig } from "../types/agent.js";
 
 export async function startApplication(
@@ -14,6 +15,20 @@ export async function startApplication(
     `[app] starting "${config.agentName}" — model=${config.openAI.model}, iggy=${config.iggyAddress}, stream=${config.topics.stream}, in=${config.topics.inputTopic}, out=${config.topics.outputTopic}`
   );
   const startedAt = Date.now();
+
+  setLogContext({
+    agent: config.agentName,
+    generation: config.generation,
+    word: config.word,
+    parent: config.parent,
+  });
+
+  log.info({
+    action: "agent_start",
+    model_coding: config.openAI.model,
+    model_reasoning: config.reasoningModel?.model ?? config.openAI.model,
+    iggy: config.iggyAddress,
+  });
 
   await startHealthServer(config.healthPort, {
     agentName: config.agentName,
@@ -95,6 +110,12 @@ export async function startApplication(
     console.log(
       `[app] received id=${message.id} from ${message.sender}: ${message.text}`
     );
+    log.info({
+      action: "iggy_receive",
+      message_id: message.id,
+      from: message.sender,
+      text: message.text,
+    });
 
     await runtime.handleMessage(message);
   });

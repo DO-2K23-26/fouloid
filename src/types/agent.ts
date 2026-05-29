@@ -45,6 +45,9 @@ export interface AgentAppConfig {
   systemPrompt?: string;
   healthPort: number;
   kickoff?: string;
+  generation: number;
+  word: string;
+  parent: string;
   identity?: AgentIdentityConfig;
 }
 

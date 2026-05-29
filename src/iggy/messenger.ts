@@ -11,6 +11,7 @@ import type {
   IggyTopicsConfig
 } from "../types/agent.js";
 import { signMessage } from "../crypto/identity.js";
+import { log } from "../logger.js";
 
 type PollResponse = Awaited<ReturnType<Client["message"]["poll"]>>;
 
@@ -40,6 +41,13 @@ export function createIggyMessenger(
       console.log(
         `[iggy] sent id=${message.id} to ${topics.outputTopic} (${message.text.length} chars)`
       );
+      log.info({
+        action: "iggy_send",
+        message_id: message.id,
+        to: topics.outputTopic,
+        reply_to: message.replyTo,
+        text: message.text,
+      });
     },
 
     async inject(message) {
