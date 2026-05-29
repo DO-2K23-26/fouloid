@@ -126,11 +126,23 @@ export async function startApplication(
 
   if (config.kickoff) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const childGen = config.generation + 1;
+    // Prepend authoritative identity so the model always knows its own
+    // generation number and computes the correct child generation (N+1).
+    // Kickoff text from ancestors may reference stale generation numbers —
+    // this header overrides them.
+    const kickoffWithContext = [
+      `[YOUR IDENTITY] You are "${config.agentName}", generation ${config.generation}, word "${config.word || "origin"}", parent "${config.parent || "none"}".`,
+      `Your child MUST be generation ${childGen}. The child's name must be "gen${childGen}-[word]".`,
+      `Ignore any other generation numbers mentioned in the kickoff text below.`,
+      ``,
+      config.kickoff,
+    ].join("\n");
     console.log(`[app] kickoff: processing id=${id} "${config.kickoff}"`);
     await runtime.handleMessage({
       id,
       sender: "system",
-      text: config.kickoff,
+      text: kickoffWithContext,
       timestamp: Date.now()
     });
   }
