@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: foulobank
+  namespace: fulloid
+spec:
+  serviceAccountName: fullobank-sa
+  containers:
+  - name: node
+    image: node:latest
+    command: ["bash"]
+    stdin: true
+    tty: true
+  restartPolicy: Never
