@@ -1,0 +1,131 @@
+{
+  "title": "Fouloid Chat",
+  "uid": "fouloid-chat",
+  "tags": ["fouloid"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "agent",
+        "type": "query",
+        "label": "Agent",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({namespace=~\"gen.*|fulloid\"}, agent)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": { "text": "All", "value": ["$__all"] }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Messages inter-agents (iggy_send)",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 20 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"iggy_send\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "fields": [
+              { "name": "agent", "alias": "De" },
+              { "name": "text", "alias": "Message" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Spawns réussis",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 20, "w": 14, "h": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"spawn_child\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Pensées (think)",
+      "type": "logs",
+      "gridPos": { "x": 14, "y": 20, "w": 10, "h": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"think\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Erreurs outils",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_error\" | agent=~\"$agent\"",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } }
+      }
+    }
+  ]
+}
