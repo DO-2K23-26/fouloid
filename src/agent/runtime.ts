@@ -126,6 +126,11 @@ export function createLangChainAgentRuntime({
       let activeModelName = "reasoning";
       let turn = 0;
       const MAX_TURNS = 30;
+      // Keep the first message (kickoff) + last N to avoid Qwen3 context overflow.
+      const MAX_HISTORY = 12;
+      // Track consecutive failures per tool to detect stuck loops.
+      let lastFailedTool = "";
+      let consecutiveFailCount = 0;
 
       while (shouldContinue) {
         if (++turn > MAX_TURNS) {
@@ -133,10 +138,15 @@ export function createLangChainAgentRuntime({
           break;
         }
 
-        console.log(`[agent] → model=${activeModelName} turn=${turn}/${MAX_TURNS} history=${messages.length}`);
+        // Prune history: always keep the first message (kickoff), slide a window on the rest.
+        const window = messages.length > MAX_HISTORY
+          ? [messages[0], ...messages.slice(-(MAX_HISTORY - 1))]
+          : messages;
+
+        console.log(`[agent] → model=${activeModelName} turn=${turn}/${MAX_TURNS} history=${messages.length}${messages.length > MAX_HISTORY ? ` (pruned→${window.length})` : ""}`);
         const llmStart = Date.now();
-        log.info({ action: "llm_call", model: activeModelName, turn, history_len: messages.length });
-        const response = await activeModel.invoke(messages);
+        log.info({ action: "llm_call", model: activeModelName, turn, history_len: window.length });
+        const response = await activeModel.invoke(window);
         log.info({ action: "llm_response", model: activeModelName, turn, latency_ms: Date.now() - llmStart, tool_calls_count: response.tool_calls?.length ?? 0, first_tool: response.tool_calls?.[0]?.name ?? null });
 
         const responseText = normalizeTextContent(response.content);
@@ -201,11 +211,51 @@ export function createLangChainAgentRuntime({
               latency_ms: toolLatency,
             });
             messages.push(new ToolMessage({ content: resultStr, tool_call_id: toolCall.id ?? "" }));
+            // Reset failure streak on success
+            if (toolCall.name === lastFailedTool) { lastFailedTool = ""; consecutiveFailCount = 0; }
           } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             console.error(`[agent] tool ${toolCall.name} failed: ${errorMsg}`);
             log.error({ action: "tool_error", turn, tool: toolCall.name, args: toolCall.args, error: errorMsg });
             messages.push(new ToolMessage({ content: `Error: ${errorMsg}`, tool_call_id: toolCall.id ?? "" }));
+
+            // Circuit breaker: consecutive failures on the same tool
+            if (toolCall.name === lastFailedTool) {
+              consecutiveFailCount++;
+            } else {
+              lastFailedTool = toolCall.name;
+              consecutiveFailCount = 1;
+            }
+
+            if (consecutiveFailCount === 3 && toolCall.name === "create_function") {
+              // Inject an explicit correction with a complete working template
+              console.warn(`[agent] circuit breaker: injecting create_function template after ${consecutiveFailCount} failures`);
+              messages.push(new HumanMessage(
+                `STOP. Your last ${consecutiveFailCount} create_function attempts submitted truncated code.\n` +
+                `You must write a COMPLETE function body — not just the opening line.\n` +
+                `Here is a working template. Copy it and fill in the values for your agent:\n\n` +
+                `module.exports = async function(context) {\n` +
+                `  return { status: 200, body: {\n` +
+                `    generation: <YOUR_GENERATION_NUMBER>,\n` +
+                `    word: "<YOUR_WORD>",\n` +
+                `    parent: "<YOUR_PARENT_NAME>",\n` +
+                `    essence: "<2-3 vivid sentences about your word>",\n` +
+                `    response_to_parent: "<one sentence answering parent mutation>",\n` +
+                `    mutation: "<the unresolved question you leave your children>",\n` +
+                `    children: []\n` +
+                `  }};\n` +
+                `};\n\n` +
+                `Now call create_function with this complete code, filling in all the angle-bracket placeholders.`
+              ));
+            } else if (consecutiveFailCount >= 6) {
+              // Give up on this function — skip to finish
+              console.error(`[agent] circuit breaker: ${consecutiveFailCount} failures on ${toolCall.name}, forcing finish`);
+              messages.push(new HumanMessage(
+                `You have failed to create a function ${consecutiveFailCount} times. Skip it. ` +
+                `Call finish now with what you have accomplished so far.`
+              ));
+              consecutiveFailCount = 0;
+            }
           }
         }
       }
