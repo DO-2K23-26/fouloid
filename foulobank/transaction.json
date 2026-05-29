@@ -1,0 +1,9 @@
+{
+		"name": "foulobank-transaction",
+		"code": "transaction.js",
+		"method": "POST",
+		"route": "/transaction",
+		"environment": "nodejs-baptiste",
+		"namespace": "fission-dev",
+		"secrets": "foulobank-redis"
+}

@@ -1,23 +1,30 @@
 const fs = require("fs");
-const redis = require("redis");
+const Redis = require("ioredis");
 
 module.exports = async (ctx) => {
+		const params = ctx.request.query  || ctx.query;
+		if (!params.account_id) {
+				return {
+						status: 400,
+						body: "Missing account_id parameter in the GET request"
+				}
+		}
 		const path = "/secrets/fission-dev/foulobank-redis/uri";
-		const files = fs.readdirSync('/secrets/fission-dev/foulobank-redis');
 		const uri = fs.readFileSync(path, { encoding: 'utf8', flag: 'r' });
-		const client = await redis.createClient({
-				url: uri
-		}).on("error", (err) => console.log("Redis Client Error", err))
-		  .connect();
-		
-		await client.set("key", "value");
-		const value = await client.get("key");
-		client.destroy();
+		const client = new Redis(uri);
+		const keys = await client.keys(params.account_id);
+		const value = await client.get(params.account_id);
+		if (!value)  {
+				return {
+						status: 404,
+						body: 'Couldn\'t find account'
+				}
+		}
 		return {
 				status: 200,
 				body: {
-						files: JSON.stringify(files),
-						data: data
+						fund: value,
+						account_id: keys
 				}
 		}
 
