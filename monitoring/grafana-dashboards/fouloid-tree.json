@@ -54,8 +54,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
-          "expr": "max(kube_namespace_labels{label_fouloid_io_agent=\"true\"} * on(namespace) group_left() label_replace(kube_namespace_labels{label_fouloid_io_agent=\"true\"}, \"gen_num\", \"$1\", \"label_fouloid_io_generation\", \"(.*)\"))",
-          "legendFormat": "Max gen"
+          "expr": "max(count by (label_fouloid_io_generation) (kube_namespace_labels{label_fouloid_io_agent=\"true\"}))",
+          "legendFormat": "Max"
         }
       ],
       "options": { "colorMode": "background", "graphMode": "none" },
@@ -68,7 +68,7 @@
     },
     {
       "id": 4,
-      "title": "Agents déployés par génération",
+      "title": "Par génération",
       "type": "stat",
       "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -79,15 +79,55 @@
         }
       ],
       "options": { "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } }
-      }
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
     },
+
     {
       "id": 5,
-      "title": "Arbre généalogique — liste des agents",
+      "title": "Arbre Généalogique — Graphe de nœuds",
+      "description": "Chaque cercle = un fouloid. Les liens = relations parent→enfant. La couleur = génération.",
+      "type": "nodeGraph",
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "nodes",
+          "expr": "label_replace(label_replace(label_replace(label_replace(kube_namespace_labels{label_fouloid_io_agent=\"true\"}, \"id\", \"$1\", \"namespace\", \"(.*)\"), \"title\", \"$1\", \"label_fouloid_io_word\", \"(.*)\"), \"mainStat\", \"$1\", \"label_fouloid_io_generation\", \"(.*)\"), \"detail__parent\", \"$1\", \"label_fouloid_io_parent\", \"(.*)\")",
+          "instant": true,
+          "legendFormat": "__auto"
+        },
+        {
+          "refId": "edges",
+          "expr": "label_join(label_replace(label_replace(kube_namespace_labels{label_fouloid_io_agent=\"true\", label_fouloid_io_parent!=\"\"}, \"source\", \"$1\", \"label_fouloid_io_parent\", \"(.*)\"), \"target\", \"$1\", \"namespace\", \"(.*)\"), \"id\", \">\", \"source\", \"target\")",
+          "instant": true,
+          "legendFormat": "__auto"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": { "mode": "columns" }
+        }
+      ],
+      "options": {
+        "nodes": {
+          "mainStatUnit": "short",
+          "secondaryStatUnit": "short",
+          "arcs": []
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+
+    {
+      "id": 6,
+      "title": "Liste des agents",
       "type": "table",
-      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 14 },
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
@@ -99,10 +139,7 @@
         }
       ],
       "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": { "mode": "columns" }
-        },
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
         {
           "id": "organize",
           "options": {
@@ -122,15 +159,10 @@
         },
         {
           "id": "sortBy",
-          "options": {
-            "fields": [{ "displayName": "Génération", "desc": false }]
-          }
+          "options": { "fields": [{ "displayName": "Génération", "desc": false }] }
         }
       ],
-      "options": {
-        "showHeader": true,
-        "footer": { "show": false }
-      },
+      "options": { "showHeader": true },
       "fieldConfig": {
         "defaults": { "custom": { "align": "left" } },
         "overrides": [
@@ -138,40 +170,30 @@
             "matcher": { "id": "byName", "options": "Génération" },
             "properties": [
               { "id": "custom.width", "value": 100 },
-              {
-                "id": "custom.displayMode",
-                "value": "color-background"
-              },
+              { "id": "custom.displayMode", "value": "color-background" },
               {
                 "id": "thresholds",
                 "value": {
                   "steps": [
                     { "value": 0, "color": "green" },
-                    { "value": 3, "color": "yellow" },
-                    { "value": 6, "color": "orange" },
-                    { "value": 10, "color": "red" }
+                    { "value": 5, "color": "yellow" },
+                    { "value": 10, "color": "orange" },
+                    { "value": 15, "color": "red" }
                   ]
                 }
               },
               { "id": "color", "value": { "mode": "thresholds" } }
             ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Mot" },
-            "properties": [{ "id": "custom.width", "value": 120 }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Parent" },
-            "properties": [{ "id": "custom.width", "value": 150 }]
           }
         ]
       }
     },
+
     {
-      "id": 6,
-      "title": "Spawns par heure",
+      "id": 7,
+      "title": "Spawns au fil du temps",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 8 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
@@ -180,9 +202,7 @@
           "legendFormat": "{{agent}}"
         }
       ],
-      "options": {
-        "tooltip": { "mode": "multi" }
-      }
+      "options": { "tooltip": { "mode": "multi" } }
     }
   ]
 }

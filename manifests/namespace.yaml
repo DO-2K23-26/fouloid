@@ -2,3 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: fulloid
+  labels:
+    fouloid.io/agent: "true"
+    fouloid.io/generation: "0"
+    fouloid.io/word: "origin"
+    fouloid.io/parent: ""

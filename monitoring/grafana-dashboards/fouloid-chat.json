@@ -24,15 +24,15 @@
   "panels": [
     {
       "id": 1,
-      "title": "Messages inter-agents (iggy_send)",
+      "title": "Messages entre fouloids",
+      "description": "Chaque ligne = un message envoyé par un agent sur iggy. Format : [nom (genN)] message",
       "type": "logs",
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 20 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"iggy_send\" | agent=~\"$agent\"",
-          "legendFormat": ""
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"iggy_send\" | agent=~\"$agent\" | line_format \"[{{.agent}} gen{{.generation}}]  {{.text}}\""
         }
       ],
       "options": {
@@ -44,31 +44,18 @@
         "enableLogDetails": true,
         "sortOrder": "Ascending",
         "dedupStrategy": "none"
-      },
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "labels",
-            "fields": [
-              { "name": "agent", "alias": "De" },
-              { "name": "text", "alias": "Message" }
-            ]
-          }
-        }
-      ]
+      }
     },
     {
       "id": 2,
-      "title": "Spawns réussis",
+      "title": "Pensées (think) — raisonnement avant d'agir",
       "type": "logs",
       "gridPos": { "x": 0, "y": 20, "w": 14, "h": 12 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"spawn_child\" | agent=~\"$agent\"",
-          "legendFormat": ""
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"think\" | agent=~\"$agent\" | line_format \"[{{.agent}} gen{{.generation}}]  {{.thought}}\""
         }
       ],
       "options": {
@@ -82,15 +69,14 @@
     },
     {
       "id": 3,
-      "title": "Pensées (think)",
+      "title": "Spawns réussis",
       "type": "logs",
       "gridPos": { "x": 14, "y": 20, "w": 10, "h": 12 },
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"think\" | agent=~\"$agent\"",
-          "legendFormat": ""
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_call\" | tool=\"spawn_child\" | agent=~\"$agent\" | line_format \"[{{.agent}}]  spawned {{.args}}\""
         }
       ],
       "options": {
@@ -111,8 +97,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_error\" | agent=~\"$agent\"",
-          "legendFormat": ""
+          "expr": "{namespace=~\"gen.*|fulloid\"} | json | action=\"tool_error\" | agent=~\"$agent\" | line_format \"[{{.agent}} gen{{.generation}}] ERROR {{.tool}}: {{.error}}\""
         }
       ],
       "options": {
@@ -122,9 +107,6 @@
         "enableLogDetails": true,
         "sortOrder": "Ascending",
         "dedupStrategy": "none"
-      },
-      "fieldConfig": {
-        "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } }
       }
     }
   ]
