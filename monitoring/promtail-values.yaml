@@ -1,35 +1,25 @@
 config:
   clients:
-    - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
-      # fallback if gateway disabled
     - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
 
   snippets:
-    pipelineStages:
-      # Try to parse JSON lines — if it works, extract structured fields
-      - json:
-          expressions:
-            action: action
-            agent: agent
-            generation: generation
-            word: word
-            parent: parent
-            tool: tool
-            level: level
-      # Promote agent/action/level as Loki labels for efficient filtering
-      - labels:
-          action:
-          agent:
-          level:
-      # Drop the original "filename" label noise
-      - labeldrop:
-          - filename
-
-    # Collect from all pods in all namespaces
+    # Collect from all pods in all namespaces, parse JSON fouloid logs
     scrapeConfigs: |
       - job_name: kubernetes-pods
         kubernetes_sd_configs:
           - role: pod
+        pipeline_stages:
+          - cri: {}
+          - json:
+              expressions:
+                action: action
+                agent: agent
+                level: level
+                tool: tool
+          - labels:
+              action:
+              agent:
+              level:
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
@@ -41,9 +31,6 @@ config:
             regex: "gen\\d+.*|fulloid"
             target_label: fouloid
             replacement: "true"
-          - source_labels: [__meta_kubernetes_pod_annotation_kubectl_kubernetes_io_last_applied_configuration]
-            action: drop
-            regex: ".+"
           - source_labels: [__meta_kubernetes_pod_container_name]
             target_label: container
           - replacement: /var/log/pods/*$1/*.log
