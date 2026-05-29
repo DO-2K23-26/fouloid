@@ -1,0 +1,9 @@
+{
+		"name": "foulobank-create-account",
+		"code": "open_account.js",
+		"method": "POST",
+		"route": "/open-account",
+		"environment": "nodejs-baptiste",
+		"namespace": "fission-dev",
+		"secrets": "foulobank-redis"
+}

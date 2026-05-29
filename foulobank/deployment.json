@@ -1,0 +1,9 @@
+{
+		"name": "foulobank-funds",
+		"code": "funds.js",
+		"method": "GET",
+		"route": "/funds",
+		"environment": "nodejs-baptiste",
+		"namespace": "fission-dev",
+		"secrets": "foulobank-redis"
+}
